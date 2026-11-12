@@ -9,6 +9,9 @@ import { resolveThreadRouteTarget, type ThreadRouteTarget } from "../threadRoute
 import { retainThreadFindForRoute } from "../components/chat/threadFindStore";
 import { ThreadLinkPrompt } from "../components/promptLinks/ThreadLinkPrompt";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useClientSettings } from "../hooks/useSettings";
+import { WorkspaceLayoutView } from "../workspaceLayout/WorkspaceLayoutView";
 
 function threadRouteTargetKey(target: ThreadRouteTarget | null) {
   if (!target) return null;
@@ -28,12 +31,18 @@ function ChatRouteLayout() {
     setBackgroundTarget(threadTarget);
   }
   const shownTarget = modalOpen ? backgroundTarget : threadTarget;
+  const flexibleLayoutEnabled = useClientSettings((settings) => settings.flexibleLayoutEnabled);
+  // Splits need room; narrow windows and phones keep the single chat.
+  const wideEnough = useMediaQuery("md");
+  const useFlexibleLayout = flexibleLayoutEnabled && wideEnough;
   return (
     <>
       {shownTarget?.kind === "server" && !modalOpen ? (
         <ThreadLinkPrompt threadRef={shownTarget.threadRef} />
       ) : null}
-      {shownTarget ? (
+      {shownTarget && useFlexibleLayout ? (
+        <WorkspaceLayoutView routeTarget={shownTarget} background={modalOpen} />
+      ) : shownTarget ? (
         <ThreadRouteView target={shownTarget} background={modalOpen} />
       ) : modalOpen ? (
         <SidebarInset className="h-dvh" />

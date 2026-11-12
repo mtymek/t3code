@@ -59,7 +59,7 @@ interface RightPanelFileProps {
   readonly onPendingChange: (relativePath: string, pending: boolean) => void;
 }
 
-export function RightPanelSurfaceContent(props: {
+export interface RightPanelSurfaceContentProps {
   readonly surface: RightPanelSurface | null;
   readonly activeSurfaceId: string | null;
   readonly threadRef: ScopedThreadRef;
@@ -79,7 +79,16 @@ export function RightPanelSurfaceContent(props: {
   readonly pullRequest: RightPanelPullRequestProps;
   readonly files: RightPanelFileProps;
   readonly sideChatParentPanel: SideChatParentPanel;
-}) {
+  /** Replaces the right panel's in-place folder navigation, for a layout pane. */
+  readonly onNavigateFolder?: (
+    surface: RightPanelSurface,
+    relativePath: string,
+    folderTrail: string,
+    keepSource: boolean | undefined,
+  ) => void;
+}
+
+export function RightPanelSurfaceContent(props: RightPanelSurfaceContentProps) {
   const { surface, threadRef, visible, onCloseSurface } = props;
   if (surface === null) return null;
   switch (surface.kind) {
@@ -114,6 +123,7 @@ export function RightPanelSurfaceContent(props: {
             composerDraftTarget={props.composerDraftTarget}
             workspaceMutationId={props.workspaceMutationId}
             visible={visible}
+            threadRef={threadRef}
           />
         </Suspense>
       );
@@ -226,9 +236,11 @@ export function RightPanelSurfaceContent(props: {
             revealRequestId={surface.kind === "file" ? surface.revealRequestId : 0}
             onOpenFile={files.onOpenFile}
             onNavigateFolder={(relativePath, folderTrail, keepSource) =>
-              useRightPanelStore
-                .getState()
-                .navigateFolder(threadRef, surface.id, relativePath, folderTrail, keepSource)
+              props.onNavigateFolder
+                ? props.onNavigateFolder(surface, relativePath, folderTrail, keepSource)
+                : useRightPanelStore
+                    .getState()
+                    .navigateFolder(threadRef, surface.id, relativePath, folderTrail, keepSource)
             }
             folderTrail={surface.folderTrail}
             onPendingChange={files.onPendingChange}

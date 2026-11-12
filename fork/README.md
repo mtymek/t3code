@@ -30,6 +30,11 @@ How the jj patch is selected and refreshed is in [hauke-jj/README.md](hauke-jj/R
   - They need Blacksmith runners or upstream credentials.
   - To turn one back on: `gh workflow enable <file> --repo mtymek/t3code`.
   - A new upstream workflow file arrives enabled. Disable it after the push that brings it in.
+- **Flexible split layout** (the `feat(web): flexible split layout` commit), off by default under Settings → Labs → Flexible layout.
+  - Each thread's area becomes splits and tabs of chats, terminals, diffs, files, browsers and pull requests. Each thread keeps its own layout, saved in that frontend's browser storage.
+  - `Ctrl+B` is the prefix (`v`/`-` split, `c` new tab, `h`/`j`/`k`/`l` move, `x` close, `z` zoom, `?` all keys). Pressing it twice sends one `Ctrl+B` to the focused pane.
+  - New code is in `apps/web/src/workspaceLayout/`. It also edits 11 upstream files; `ChatView.tsx` is the one most likely to conflict.
+  - In `ChatView.tsx` the patch reads `LayoutPaneContext`, hides the terminal and right-panel toggles in layout panes, renders `LayoutSurfaceHost` from `rightPanelContent.props`, and adds `backgroundThread` to the two composer-focus effects. Re-apply those when resolving a conflict there.
 
 ## Versions
 
@@ -193,7 +198,7 @@ A scheduled T3 task on sajaki follows this procedure every Sunday morning. Follo
      - `packages/provider-core`, `packages/provider-acp`, `packages/provider-cursor`, `packages/provider-opencode`, `packages/provider-pi`
    - Run the tests:
      ```sh
-     GIT_CONFIG_GLOBAL=/dev/null node_modules/.bin/vp test run apps/server/src/jj apps/server/src/vcs apps/server/src/git/GitWorkflowService.test.ts apps/server/src/checkpointing apps/server/src/orchestration-v2/CheckpointCaptureService.test.ts apps/server/src/orchestration-v2/CheckpointService.test.ts apps/server/src/provider/AgentContextBudget.test.ts apps/server/src/cli/update.test.ts packages/shared/src/cliRelease.test.ts packages/provider-opencode/src/server/toolItems.test.ts packages/client-runtime/src/state/jjStack.test.ts apps/web/src/components/JjStackControl.logic.test.ts
+     GIT_CONFIG_GLOBAL=/dev/null node_modules/.bin/vp test run apps/server/src/jj apps/server/src/vcs apps/server/src/git/GitWorkflowService.test.ts apps/server/src/checkpointing apps/server/src/orchestration-v2/CheckpointCaptureService.test.ts apps/server/src/orchestration-v2/CheckpointService.test.ts apps/server/src/provider/AgentContextBudget.test.ts apps/server/src/cli/update.test.ts packages/shared/src/cliRelease.test.ts packages/provider-opencode/src/server/toolItems.test.ts packages/client-runtime/src/state/jjStack.test.ts apps/web/src/components/JjStackControl.logic.test.ts apps/web/src/workspaceLayout
      ```
      `GIT_CONFIG_GLOBAL=/dev/null` keeps a personal `url.*.insteadOf` rule from failing `GitVcsDriver.test.ts`.
    - If `AgentContextBudget.test.ts` fails only on `mcpToolListJsonBytes`, set `apps/server/src/provider/agentContextBudget.json` to the measured value in `jj-glue`. The jj MCP tools add about 2 KB.
