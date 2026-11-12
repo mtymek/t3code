@@ -30,6 +30,7 @@ import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
+import * as JjStatusReader from "../jj/JjStatusReader.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ServerSettings from "../serverSettings.ts";
 
@@ -250,6 +251,17 @@ export const make = Effect.gen(function* () {
   const automaticFetchInterval = yield* VcsAutomaticFetchInterval;
   const autoPullPolicy = yield* VcsAutoPullPolicy;
   const workflow = yield* GitWorkflowService.GitWorkflowService;
+  const jjStatus = yield* JjStatusReader.JjStatusReader;
+  // jj working copies add their jj block; one without a Git worktree has no remote status.
+  const localStatusFor = (cwd: string) => jjStatus.localStatus(cwd, workflow.localStatus({ cwd }));
+  const remoteStatusFor = (cwd: string, options?: Parameters<typeof workflow.remoteStatus>[1]) =>
+    Effect.flatMap(jjStatus.isJjWithoutGit(cwd), (jjWithoutGit) =>
+      jjWithoutGit ? Effect.succeed(null) : workflow.remoteStatus({ cwd }, options),
+    );
+  const currentBranchFor = (cwd: string) =>
+    Effect.flatMap(jjStatus.isJjWithoutGit(cwd), (jjWithoutGit) =>
+      jjWithoutGit ? Effect.succeed(null) : workflow.currentBranch(cwd),
+    );
   const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
   const fs = yield* FileSystem.FileSystem;
   const changesPubSub = yield* Effect.acquireRelease(
@@ -349,7 +361,7 @@ export const make = Effect.gen(function* () {
   const loadLocalStatus = Effect.fn("VcsStatusBroadcaster.loadLocalStatus")(function* (
     cwd: string,
   ) {
-    const local = yield* workflow.localStatus({ cwd });
+    const local = yield* localStatusFor(cwd);
     return yield* updateCachedLocalStatus(cwd, local);
   });
 
@@ -357,10 +369,10 @@ export const make = Effect.gen(function* () {
     function* (cwd: string) {
       const cached = yield* getCachedStatus(cwd);
       if (cached?.local) {
-        const branch = yield* workflow.currentBranch(cwd);
+        const branch = yield* currentBranchFor(cwd);
         if (branch === cached.local.value.refName) return cached.local.value;
         yield* workflow.invalidateLocalStatus(cwd);
-        return yield* updateCachedLocalStatus(cwd, yield* workflow.localStatus({ cwd }), {
+        return yield* updateCachedLocalStatus(cwd, yield* localStatusFor(cwd), {
           publish: true,
         });
       }
@@ -421,7 +433,7 @@ export const make = Effect.gen(function* () {
           if (shared !== undefined && shared.startedAt >= requestedAt) return shared.local;
           const startedAt = localRefreshRequests.get(cwd) ?? requestedAt;
           yield* workflow.invalidateLocalStatus(cwd);
-          const local = yield* workflow.localStatus({ cwd });
+          const local = yield* localStatusFor(cwd);
           localRefreshResults.set(cwd, { startedAt, local });
           return yield* updateCachedLocalStatus(cwd, local, { publish: true });
         }),
@@ -440,11 +452,11 @@ export const make = Effect.gen(function* () {
     cwd: string,
     options?: Parameters<GitWorkflowService.GitWorkflowService["Service"]["remoteStatus"]>[1],
   ) {
-    const branch = yield* workflow.currentBranch(cwd);
+    const branch = yield* currentBranchFor(cwd);
     // GitManager's remote TTL cache is keyed by cwd, not the checked-out branch.
     yield* workflow.invalidateRemoteStatus(cwd);
-    const value = yield* workflow.remoteStatus({ cwd }, options);
-    const currentBranch = yield* workflow.currentBranch(cwd);
+    const value = yield* remoteStatusFor(cwd, options);
+    const currentBranch = yield* currentBranchFor(cwd);
     const cached = yield* getCachedStatus(cwd);
     if (branch !== currentBranch || cached?.local?.value.refName !== currentBranch) {
       yield* refreshLocalStatusCore(cwd);
@@ -476,7 +488,7 @@ export const make = Effect.gen(function* () {
       }
 
       yield* workflow.invalidateLocalStatus(cwd);
-      const local = yield* workflow.localStatus({ cwd });
+      const local = yield* localStatusFor(cwd);
       if (
         !local.isRepo ||
         !local.isDefaultRef ||
@@ -803,7 +815,7 @@ export const make = Effect.gen(function* () {
             const local = yield* getOrLoadLocalStatusUnlocked(cwd);
             return { refName: local.refName, revision: branches.get(cwd)?.revision ?? 0 };
           }
-          const refName = yield* workflow.currentBranch(cwd);
+          const refName = yield* currentBranchFor(cwd);
           // HEAD cannot certify working-tree totals, even when it has not moved.
           localRefreshResults.delete(cwd);
           yield* workflow.invalidateLocalStatus(cwd);
@@ -812,7 +824,7 @@ export const make = Effect.gen(function* () {
             return previous ? new Map(cache).set(cwd, { ...previous, local: null }) : cache;
           });
           if (detailedSubscribers.has(cwd)) {
-            const local = yield* workflow.localStatus({ cwd });
+            const local = yield* localStatusFor(cwd);
             yield* updateCachedLocalStatus(cwd, local, { publish: true });
             return { refName: local.refName, revision: branches.get(cwd)?.revision ?? 0 };
           }

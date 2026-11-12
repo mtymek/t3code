@@ -58,6 +58,7 @@ import {
   makeProviderRetryTurnItem,
 } from "@t3tools/provider-core/server/failure";
 import { turnScopedSelectionTransition } from "@t3tools/provider-core/server/selectionTransition";
+import { ProviderThreadEnvironment } from "@t3tools/provider-core/server/threadEnvironment";
 import {
   findReportedPiModel,
   makePiRpcConnection,
@@ -480,9 +481,10 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       if (!resolvedLaunchArgs.ok) {
         return yield* protocolError(resolvedLaunchArgs.message);
       }
+      const threadEnvironment = yield* (yield* ProviderThreadEnvironment).forThread(input.threadId);
       const launch = buildPiRpcLaunch({
         launchArgs: resolvedLaunchArgs.args,
-        environment: options.environment,
+        environment: { ...options.environment, ...threadEnvironment },
         mcpSession,
         extensionPath,
         runtimeMode: input.runtimePolicy.runtimeMode,
@@ -1253,6 +1255,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                 title: toolName,
                 type: "file_change",
                 fileName,
+                changes: [{ operation: "update", path: fileName }],
                 ...(diffStr === undefined ? {} : { diffStr }),
                 ...(newStr === undefined ? {} : { newStr }),
               },

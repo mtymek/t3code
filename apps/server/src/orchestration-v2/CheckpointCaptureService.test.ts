@@ -277,7 +277,7 @@ it.layer(layerProjectionStoreTest)("CheckpointCaptureServiceV2", (it) => {
                         NodeCrypto.layer,
                         Layer.mock(CheckpointStore.CheckpointStore)({
                           listAuthoredPaths: () => Effect.succeed(null),
-                          isGitRepository: () => Effect.succeed(true),
+                          isCheckpointable: () => Effect.succeed(true),
                           captureCheckpoint: () => Effect.void,
                           hasCheckpointRef: () =>
                             Effect.fail(
@@ -477,6 +477,98 @@ it.layer(layerProjectionStoreTest)("CheckpointCaptureServiceV2", (it) => {
     }),
   );
 
+  it.effect("settles without capturing a run that failed before its turn started", () =>
+    Effect.gen(function* () {
+      const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
+      const now = yield* DateTime.now;
+      const failedThreadId = ThreadId.make("thread:checkpoint-capture-failed-early");
+      const failedRunId = RunId.make("run:checkpoint-capture-failed-early");
+      yield* projectionStore.apply({
+        id: EventId.make("event:checkpoint-capture-failed-early:thread"),
+        type: "thread.created",
+        threadId: failedThreadId,
+        occurredAt: now,
+        payload: {
+          createdBy: "user",
+          creationSource: "web",
+          id: failedThreadId,
+          projectId,
+          title: "Checkpoint capture after an early failure",
+          providerInstanceId,
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          activeProviderThreadId: null,
+          lineage: {
+            parentThreadId: null,
+            relationshipToParent: null,
+            rootThreadId: failedThreadId,
+          },
+          forkedFrom: null,
+          createdAt: now,
+          updatedAt: now,
+          archivedAt: null,
+          settledOverride: null,
+          settledAt: null,
+          lastVisitedAt: null,
+          deletedAt: null,
+        },
+      });
+      yield* projectionStore.apply({
+        id: EventId.make("event:checkpoint-capture-failed-early:run"),
+        type: "run.updated",
+        threadId: failedThreadId,
+        runId: failedRunId,
+        providerInstanceId,
+        occurredAt: now,
+        payload: {
+          id: failedRunId,
+          threadId: failedThreadId,
+          ordinal: 1,
+          providerInstanceId,
+          modelSelection,
+          providerThreadId: null,
+          userMessageId: MessageId.make("message:checkpoint-capture-failed-early"),
+          rootNodeId: null,
+          activeAttemptId: null,
+          status: "failed",
+          requestedAt: now,
+          startedAt: now,
+          completedAt: now,
+          checkpointId: null,
+          contextHandoffId: null,
+        },
+      });
+
+      const committed = yield* Ref.make<ReadonlyArray<OrchestrationV2DomainEvent>>([]);
+      yield* CheckpointCaptureService.CheckpointCaptureServiceV2.pipe(
+        Effect.flatMap((service) =>
+          service.execute({ threadId: failedThreadId, runId: failedRunId, scopeId }),
+        ),
+        Effect.provide(
+          CheckpointCaptureService.layer.pipe(
+            Layer.provide(
+              Layer.mergeAll(
+                IdAllocator.layer,
+                Layer.mock(CheckpointService.CheckpointServiceV2)({
+                  capture: () => Effect.die("a run without a turn has nothing to capture"),
+                }),
+                Layer.mock(EventSink.EventSinkV2)({
+                  commitCommand: (input) =>
+                    Ref.set(committed, input.events).pipe(Effect.as({ committed: true } as never)),
+                }),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      assert.deepEqual(yield* Ref.get(committed), []);
+    }),
+  );
+
   // A stopped run is captured after it ends; by then the next root run, dispatched or queued, may
   // have re-created the thread's one root scope with its own node and time.
   it.effect.each([1, 2])(
@@ -640,7 +732,7 @@ it.layer(layerProjectionStoreTest)("CheckpointCaptureServiceV2", (it) => {
                     IdAllocator.layer,
                     NodeCrypto.layer,
                     Layer.mock(CheckpointStore.CheckpointStore)({
-                      isGitRepository: () => Effect.succeed(true),
+                      isCheckpointable: () => Effect.succeed(true),
                       hasCheckpointRef: () => Effect.succeed(true),
                       captureCheckpoint: () => Effect.void,
                       diffCheckpoints: () => Effect.succeed(""),
@@ -1068,7 +1160,7 @@ it.layer(layerProjectionStoreTest)("CheckpointCaptureServiceV2", (it) => {
                   IdAllocator.layer,
                   NodeCrypto.layer,
                   Layer.mock(CheckpointStore.CheckpointStore)({
-                    isGitRepository: gitUnavailable,
+                    isCheckpointable: gitUnavailable,
                     captureCheckpoint: gitUnavailable,
                     hasCheckpointRef: gitUnavailable,
                   }),

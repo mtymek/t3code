@@ -1,4 +1,5 @@
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
+import * as JjStatusReader from "../jj/JjStatusReader.ts";
 import * as VcsStatusBroadcaster from "../vcs/VcsStatusBroadcaster.ts";
 import { SourceControlProviderKind } from "@t3tools/contracts";
 // @effect-diagnostics nodeBuiltinImport:off
@@ -786,6 +787,12 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
             Layer.provide(
               Layer.mock(BackgroundPolicy.BackgroundPolicy)({
                 shouldRunScopeWork: () => Effect.succeed(true),
+              }),
+            ),
+            Layer.provide(
+              Layer.mock(JjStatusReader.JjStatusReader)({
+                localStatus: (_cwd, gitStatus) => gitStatus,
+                isJjWithoutGit: () => Effect.succeed(false),
               }),
             ),
           ),

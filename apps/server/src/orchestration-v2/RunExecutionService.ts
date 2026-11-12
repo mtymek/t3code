@@ -55,6 +55,7 @@ import {
   makeProviderFailureTurnItem,
 } from "@t3tools/provider-core/server/failure";
 import * as RunFinalizationService from "./RunFinalizationService.ts";
+import { VcsTurnHooks } from "./VcsTurnHooks.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 import { userFacingDatabaseErrorMessage } from "./UserFacingErrors.ts";
 
@@ -626,6 +627,7 @@ export const layer: Layer.Layer<
     const previewAgentActivity = yield* PreviewAgentActivity.PreviewAgentActivity;
     const turnItemPositions = yield* TurnItemPositionStore.TurnItemPositionStoreV2;
     const finalizationObserver = yield* RunFinalizationService.RunFinalizationObserver;
+    const vcsTurnHooks = yield* VcsTurnHooks;
     const turnAnalytics = yield* ProviderUsageAnalytics.ProviderTurnAnalytics;
 
     const writeFinalRunEvents = Effect.fn("RunExecutionService.writeFinalRunEvents")(
@@ -748,12 +750,14 @@ export const layer: Layer.Layer<
         const checkpointCaptureCommandId = CommandId.make(
           `command:effect:checkpoint.capture:${input.run.id}`,
         );
-        // Stopped runs capture rollback points for the next message; enqueue before later starts on this effect lane.
+        // Stopped and failed runs capture rollback points for the next message, and failed runs seal
+        // jj working-copy files; enqueue before later starts on this effect lane.
         const finalization = {
           effects:
             input.terminal.status === "completed" ||
             input.terminal.status === "interrupted" ||
-            input.terminal.status === "cancelled"
+            input.terminal.status === "cancelled" ||
+            input.terminal.status === "failed"
               ? [
                   {
                     id: `effect:checkpoint.capture:${input.run.id}`,
@@ -941,6 +945,14 @@ export const layer: Layer.Layer<
             ),
           );
           // Side chats share the parent's worktree; a snapshot would capture the parent's edits.
+          if (input.appThread.lineage.sideChat !== true) {
+            yield* vcsTurnHooks.turnStarted({
+              threadId: input.run.threadId,
+              runId: input.run.id,
+              ordinal: input.run.ordinal,
+              cwd: input.checkpointScope.cwd,
+            });
+          }
           yield* (
             input.appThread.lineage.sideChat === true
               ? Effect.void

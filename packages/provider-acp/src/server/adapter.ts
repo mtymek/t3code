@@ -1203,6 +1203,22 @@ function pathFromToolCall(toolCall: AcpToolCallState): string | undefined {
   return undefined;
 }
 
+/** Every file a tool call names in its locations or ACP v1 diff content. */
+function filePathsFromToolCall(toolCall: AcpToolCallState): Array<string> {
+  const { locations, content } = toolCall.data;
+  const entries = [
+    ...(Array.isArray(locations) ? locations : []),
+    ...(Array.isArray(content)
+      ? content.filter((entry) => unknownRecord(entry)?.type === "diff")
+      : []),
+  ];
+  const paths = entries.flatMap((entry) => {
+    const path = unknownRecord(entry)?.path;
+    return typeof path === "string" && path.trim().length > 0 ? [path.trim()] : [];
+  });
+  return [...new Set(paths)];
+}
+
 function acpBackendWebSearch(
   rawInput: Record<string, unknown> | undefined,
   rawOutput: Record<string, unknown> | undefined,
@@ -4259,12 +4275,17 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               case "edit":
               case "delete":
               case "move": {
+                const operation = toolCall.kind === "edit" ? "update" : toolCall.kind;
+                const changedPaths = filePathsFromToolCall(toolCall);
                 const snippet = acpToolCallSnippetEdit(toolCall.data.content);
                 const unpreviewable = acpToolCallDiffUnpreviewable(toolCall.data.content);
                 turnItem = {
                   ...base,
                   type: "file_change",
                   fileName: path ?? toolCall.title ?? "File change",
+                  ...(changedPaths.length === 0
+                    ? {}
+                    : { changes: changedPaths.map((path) => ({ operation, path })) }),
                   ...(snippet ??
                     (unpreviewable || diffText === undefined ? {} : { diffStr: diffText })),
                 };
