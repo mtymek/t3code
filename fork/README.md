@@ -32,6 +32,11 @@ How the jj patch is selected and refreshed is in [hauke-jj/README.md](hauke-jj/R
   - They need Blacksmith runners or upstream credentials.
   - To turn one back on: `gh workflow enable <file> --repo mtymek/t3code`.
   - A new upstream workflow file arrives enabled. Disable it after the push that brings it in.
+- **Terminal ANSI palette in themes** (the `feat(web): themes set the terminal's 16 ANSI colors` commit).
+  - Themes gain `terminalAnsiBlack` … `terminalAnsiBrightWhite`, defaulting to the VS Code palettes the terminal used before. The VS Code importer maps `terminal.ansi*`, and the theme editor's advanced view has a Terminal palette group.
+  - Based on Mathias Aerts' branch for upstream Ideas discussion [#31385](https://github.com/pingdotgg/t3code/discussions/31385). Drop this commit if upstream merges that feature.
+  - Published theme files (`~/.t3/userdata/themes/`) may carry the new keys safely: builds without this patch ignore unknown roles there. A theme file imported through the editor's import does not; it is rejected.
+  - `ThemeEditorPanel.tsx`'s import block is the likely conflict.
 
 ## Versions
 
