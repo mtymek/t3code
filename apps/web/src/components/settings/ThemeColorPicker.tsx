@@ -25,6 +25,13 @@ export function getThemeRoleLabel(role: ThemeColorRole): string {
   };
   const label = labels[role];
   if (label) return label;
+  if (role.startsWith("terminalAnsi")) {
+    const slot = role
+      .slice("terminalAnsi".length)
+      .replace(/([A-Z])/g, " $1")
+      .trim();
+    return `Terminal ANSI ${slot.toLowerCase()}`;
+  }
   return role.replace(/([A-Z])/g, " $1").replace(/^./, (character) => character.toUpperCase());
 }
 

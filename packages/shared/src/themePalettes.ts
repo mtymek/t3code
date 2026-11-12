@@ -27,6 +27,28 @@ export type BuiltInThemeId = (typeof BUILT_IN_THEME_IDS)[number];
 export type MobileThemeId = (typeof MOBILE_THEME_IDS)[number];
 export type ThemeAppearance = "light" | "dark";
 
+/** ANSI colors 0-15 in palette order: the eight normal colors, then their bright variants. */
+export const TERMINAL_ANSI_COLOR_ROLES = [
+  "terminalAnsiBlack",
+  "terminalAnsiRed",
+  "terminalAnsiGreen",
+  "terminalAnsiYellow",
+  "terminalAnsiBlue",
+  "terminalAnsiMagenta",
+  "terminalAnsiCyan",
+  "terminalAnsiWhite",
+  "terminalAnsiBrightBlack",
+  "terminalAnsiBrightRed",
+  "terminalAnsiBrightGreen",
+  "terminalAnsiBrightYellow",
+  "terminalAnsiBrightBlue",
+  "terminalAnsiBrightMagenta",
+  "terminalAnsiBrightCyan",
+  "terminalAnsiBrightWhite",
+] as const;
+
+export type TerminalAnsiColorRole = (typeof TERMINAL_ANSI_COLOR_ROLES)[number];
+
 export const THEME_COLOR_ROLES = [
   "canvas",
   "chrome",
@@ -89,6 +111,7 @@ export const THEME_COLOR_ROLES = [
   "terminalSelection",
   "terminalScrollbar",
   "terminalScrollbarHover",
+  ...TERMINAL_ANSI_COLOR_ROLES,
 ] as const;
 
 export type ThemeColorRole = (typeof THEME_COLOR_ROLES)[number];
@@ -104,6 +127,48 @@ export type ThemeDefinition = Readonly<{
   sidebarArtwork?: boolean;
   managed?: boolean;
 }>;
+
+export type TerminalAnsiColors = Readonly<Record<TerminalAnsiColorRole, string>>;
+
+// VS Code's default terminal palettes in canonical OKLCH, so built-in themes round-trip through
+// theme files unchanged and ANSI output looks the same as before themes carried these roles.
+export const T3_CODE_LIGHT_TERMINAL_ANSI_COLORS: TerminalAnsiColors = {
+  terminalAnsiBlack: "oklch(0 0 0)",
+  terminalAnsiRed: "oklch(0.559199 0.192749 26.075)",
+  terminalAnsiGreen: "oklch(0.51035 0.165397 142.668)",
+  terminalAnsiYellow: "oklch(0.654414 0.144486 111.645)",
+  terminalAnsiBlue: "oklch(0.445814 0.151026 256.303)",
+  terminalAnsiMagenta: "oklch(0.559061 0.254992 328.346)",
+  terminalAnsiCyan: "oklch(0.630715 0.116327 222.621)",
+  terminalAnsiWhite: "oklch(0.449533 0 0)",
+  terminalAnsiBrightBlack: "oklch(0.510278 0 0)",
+  terminalAnsiBrightRed: "oklch(0.559199 0.192749 26.075)",
+  terminalAnsiBrightGreen: "oklch(0.739207 0.246182 142.573)",
+  terminalAnsiBrightYellow: "oklch(0.759442 0.167758 111.714)",
+  terminalAnsiBrightBlue: "oklch(0.445814 0.151026 256.303)",
+  terminalAnsiBrightMagenta: "oklch(0.559061 0.254992 328.346)",
+  terminalAnsiBrightCyan: "oklch(0.630715 0.116327 222.621)",
+  terminalAnsiBrightWhite: "oklch(0.721933 0 0)",
+};
+
+export const T3_CODE_DARK_TERMINAL_ANSI_COLORS: TerminalAnsiColors = {
+  terminalAnsiBlack: "oklch(0 0 0)",
+  terminalAnsiRed: "oklch(0.559199 0.192749 26.075)",
+  terminalAnsiGreen: "oklch(0.701764 0.160013 158.769)",
+  terminalAnsiYellow: "oklch(0.892589 0.192564 109.74)",
+  terminalAnsiBlue: "oklch(0.551169 0.152678 254.169)",
+  terminalAnsiMagenta: "oklch(0.5911 0.21293 327.859)",
+  terminalAnsiCyan: "oklch(0.678482 0.122357 221.434)",
+  terminalAnsiWhite: "oklch(0.921906 0 0)",
+  terminalAnsiBrightBlack: "oklch(0.510278 0 0)",
+  terminalAnsiBrightRed: "oklch(0.649062 0.201766 24.739)",
+  terminalAnsiBrightGreen: "oklch(0.762134 0.166934 159.47)",
+  terminalAnsiBrightYellow: "oklch(0.941039 0.186145 109.5)",
+  terminalAnsiBrightBlue: "oklch(0.641029 0.15957 253.505)",
+  terminalAnsiBrightMagenta: "oklch(0.697244 0.178768 327.281)",
+  terminalAnsiBrightCyan: "oklch(0.726055 0.123273 219.34)",
+  terminalAnsiBrightWhite: "oklch(0.921906 0 0)",
+};
 
 export const T3_CODE_LIGHT_THEME_COLORS: ThemeColors = {
   searchMatchBackground: "#ffde8b",
@@ -167,6 +232,7 @@ export const T3_CODE_LIGHT_THEME_COLORS: ThemeColors = {
   terminalSelection: "#d0d6dd",
   terminalScrollbar: "#d6d6d6",
   terminalScrollbarHover: "#bdbdbd",
+  ...T3_CODE_LIGHT_TERMINAL_ANSI_COLORS,
 };
 
 export const T3_CODE_DARK_THEME_COLORS: ThemeColors = {
@@ -231,6 +297,7 @@ export const T3_CODE_DARK_THEME_COLORS: ThemeColors = {
   terminalSelection: "#343a47",
   terminalScrollbar: "#222222",
   terminalScrollbarHover: "#363636",
+  ...T3_CODE_DARK_TERMINAL_ANSI_COLORS,
 };
 
 export const T3_CHAT_THEME: ThemeDefinition = {
@@ -299,6 +366,7 @@ export const T3_CHAT_THEME: ThemeDefinition = {
     terminalSelection: "oklch(0.869588 0.06751 334.899)",
     terminalScrollbar: "oklch(0.851713 0.055822 336.6)",
     terminalScrollbarHover: "oklch(0.802407 0.090963 345.892)",
+    ...T3_CODE_LIGHT_TERMINAL_ANSI_COLORS,
   },
   variants: {
     dark: {
@@ -363,6 +431,7 @@ export const T3_CHAT_THEME: ThemeDefinition = {
       terminalSelection: "oklch(0.313674 0.030572 310.061)",
       terminalScrollbar: "oklch(0.266817 0.02897 344.461)",
       terminalScrollbarHover: "oklch(0.360924 0.021469 316.83)",
+      ...T3_CODE_DARK_TERMINAL_ANSI_COLORS,
     },
   },
   sidebarArtwork: true,
@@ -434,6 +503,7 @@ export const GROVE_THEME: ThemeDefinition = {
     terminalSelection: "oklch(0.891377 0.026164 164.929)",
     terminalScrollbar: "oklch(0.824752 0.001392 294.641)",
     terminalScrollbarHover: "oklch(0.755495 0.004415 318.776)",
+    ...T3_CODE_LIGHT_TERMINAL_ANSI_COLORS,
   },
   variants: {
     dark: {
@@ -498,6 +568,7 @@ export const GROVE_THEME: ThemeDefinition = {
       terminalSelection: "oklch(0.464636 0.066083 158.72)",
       terminalScrollbar: "oklch(0.594692 0.006862 176.022)",
       terminalScrollbarHover: "oklch(0.687968 0.00354 193.55)",
+      ...T3_CODE_DARK_TERMINAL_ANSI_COLORS,
     },
   },
   sidebarArtwork: true,
@@ -569,6 +640,7 @@ export const OCEAN_THEME: ThemeDefinition = {
     terminalSelection: "oklch(0.895373 0.023469 241.913)",
     terminalScrollbar: "oklch(0.826271 0.006191 305.456)",
     terminalScrollbarHover: "oklch(0.756866 0.008685 313.721)",
+    ...T3_CODE_LIGHT_TERMINAL_ANSI_COLORS,
   },
   variants: {
     dark: {
@@ -633,6 +705,7 @@ export const OCEAN_THEME: ThemeDefinition = {
       terminalSelection: "oklch(0.439946 0.0561 243.479)",
       terminalScrollbar: "oklch(0.58613 0.012959 267.22)",
       terminalScrollbarHover: "oklch(0.681569 0.010909 276.465)",
+      ...T3_CODE_DARK_TERMINAL_ANSI_COLORS,
     },
   },
   sidebarArtwork: true,
@@ -704,6 +777,7 @@ export const EMBER_THEME: ThemeDefinition = {
     terminalSelection: "oklch(0.899296 0.022939 49.163)",
     terminalScrollbar: "oklch(0.828185 0.005884 349.533)",
     terminalScrollbarHover: "oklch(0.758584 0.008423 341.16)",
+    ...T3_CODE_LIGHT_TERMINAL_ANSI_COLORS,
   },
   variants: {
     dark: {
@@ -768,6 +842,7 @@ export const EMBER_THEME: ThemeDefinition = {
       terminalSelection: "oklch(0.442681 0.0608 50.795)",
       terminalScrollbar: "oklch(0.587861 0.010463 20.444)",
       terminalScrollbarHover: "oklch(0.682876 0.009156 9.796)",
+      ...T3_CODE_DARK_TERMINAL_ANSI_COLORS,
     },
   },
   sidebarArtwork: true,
@@ -839,6 +914,7 @@ export const IRIS_THEME: ThemeDefinition = {
     terminalSelection: "oklch(0.897143 0.028558 299.758)",
     terminalScrollbar: "oklch(0.828195 0.008526 318.858)",
     terminalScrollbarHover: "oklch(0.758596 0.010892 321.538)",
+    ...T3_CODE_LIGHT_TERMINAL_ANSI_COLORS,
   },
   variants: {
     dark: {
@@ -903,6 +979,7 @@ export const IRIS_THEME: ThemeDefinition = {
       terminalSelection: "oklch(0.395417 0.085554 294.182)",
       terminalScrollbar: "oklch(0.578663 0.017888 302.229)",
       terminalScrollbarHover: "oklch(0.676012 0.015271 305.433)",
+      ...T3_CODE_DARK_TERMINAL_ANSI_COLORS,
     },
   },
   sidebarArtwork: true,

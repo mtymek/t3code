@@ -227,6 +227,7 @@ describe("theme files", () => {
         terminalSelection: "rebeccapurple",
         terminalScrollbar: "transparent",
         terminalScrollbarHover: "rgb(10 20 30 / none)",
+        terminalAnsiBrightCyan: "hsl(190 70% 50%)",
       },
     });
 
@@ -237,6 +238,9 @@ describe("theme files", () => {
     expect(themeColorToHex(theme.colors.terminalSelection)).toBe("#663399");
     expect(theme.colors.terminalScrollbar).toBe("oklch(0 0 0 / 0)");
     expect(themeColorToHex(theme.colors.terminalScrollbarHover)).toBe("#0a141e00");
+    // ANSI roles missing from the file fall back to the appearance's default palette.
+    expect(themeColorToHex(theme.colors.terminalAnsiBlack)).toBe("#000000");
+    expect(themeColorToHex(theme.colors.terminalAnsiGreen)).toBe("#107c10");
     for (const role of [
       "error",
       "warning",
@@ -244,6 +248,7 @@ describe("theme files", () => {
       "messageAction",
       "sidebar",
       "terminalCursor",
+      "terminalAnsiBrightCyan",
     ] as const) {
       expect(theme.colors[role]).toMatch(/^oklch\(/);
     }

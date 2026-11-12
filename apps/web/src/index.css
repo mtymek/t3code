@@ -1183,6 +1183,22 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --terminal-foreground: var(--foreground);
   --terminal-cursor: rgb(38 56 78);
   --terminal-selection-background: rgb(37 63 99 / 20%);
+  --terminal-ansi-black: #000000;
+  --terminal-ansi-red: #cd3131;
+  --terminal-ansi-green: #107c10;
+  --terminal-ansi-yellow: #949800;
+  --terminal-ansi-blue: #0451a5;
+  --terminal-ansi-magenta: #bc05bc;
+  --terminal-ansi-cyan: #0598bc;
+  --terminal-ansi-white: #555555;
+  --terminal-ansi-bright-black: #666666;
+  --terminal-ansi-bright-red: #cd3131;
+  --terminal-ansi-bright-green: #14ce14;
+  --terminal-ansi-bright-yellow: #b5ba00;
+  --terminal-ansi-bright-blue: #0451a5;
+  --terminal-ansi-bright-magenta: #bc05bc;
+  --terminal-ansi-bright-cyan: #0598bc;
+  --terminal-ansi-bright-white: #a5a5a5;
 
   @variant dark {
     color-scheme: dark;
@@ -1225,6 +1241,22 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     --sidebar-stage-fade: var(--card);
     --terminal-cursor: rgb(180 203 255);
     --terminal-selection-background: rgb(180 203 255 / 25%);
+    --terminal-ansi-black: #000000;
+    --terminal-ansi-red: #cd3131;
+    --terminal-ansi-green: #0dbc79;
+    --terminal-ansi-yellow: #e5e510;
+    --terminal-ansi-blue: #2472c8;
+    --terminal-ansi-magenta: #bc3fbc;
+    --terminal-ansi-cyan: #11a8cd;
+    --terminal-ansi-white: #e5e5e5;
+    --terminal-ansi-bright-black: #666666;
+    --terminal-ansi-bright-red: #f14c4c;
+    --terminal-ansi-bright-green: #23d18b;
+    --terminal-ansi-bright-yellow: #f5f543;
+    --terminal-ansi-bright-blue: #3b8eea;
+    --terminal-ansi-bright-magenta: #d670d6;
+    --terminal-ansi-bright-cyan: #29b8db;
+    --terminal-ansi-bright-white: #e5e5e5;
   }
 }
 
@@ -1386,6 +1418,22 @@ html[data-theme-id]:not([data-theme-id=""]) {
   --terminal-foreground: var(--app-theme-terminal-foreground);
   --terminal-cursor: var(--app-theme-terminal-cursor);
   --terminal-selection-background: var(--app-theme-terminal-selection-background);
+  --terminal-ansi-black: var(--app-theme-terminal-ansi-black);
+  --terminal-ansi-red: var(--app-theme-terminal-ansi-red);
+  --terminal-ansi-green: var(--app-theme-terminal-ansi-green);
+  --terminal-ansi-yellow: var(--app-theme-terminal-ansi-yellow);
+  --terminal-ansi-blue: var(--app-theme-terminal-ansi-blue);
+  --terminal-ansi-magenta: var(--app-theme-terminal-ansi-magenta);
+  --terminal-ansi-cyan: var(--app-theme-terminal-ansi-cyan);
+  --terminal-ansi-white: var(--app-theme-terminal-ansi-white);
+  --terminal-ansi-bright-black: var(--app-theme-terminal-ansi-bright-black);
+  --terminal-ansi-bright-red: var(--app-theme-terminal-ansi-bright-red);
+  --terminal-ansi-bright-green: var(--app-theme-terminal-ansi-bright-green);
+  --terminal-ansi-bright-yellow: var(--app-theme-terminal-ansi-bright-yellow);
+  --terminal-ansi-bright-blue: var(--app-theme-terminal-ansi-bright-blue);
+  --terminal-ansi-bright-magenta: var(--app-theme-terminal-ansi-bright-magenta);
+  --terminal-ansi-bright-cyan: var(--app-theme-terminal-ansi-bright-cyan);
+  --terminal-ansi-bright-white: var(--app-theme-terminal-ansi-bright-white);
 }
 
 /* Theme-token dependency probes are restored synchronously, before paint. Keep

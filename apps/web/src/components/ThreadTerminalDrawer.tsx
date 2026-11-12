@@ -32,6 +32,12 @@ import {
   type ThreadId,
 } from "@t3tools/contracts";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
+import {
+  T3_CODE_DARK_TERMINAL_ANSI_COLORS,
+  T3_CODE_LIGHT_TERMINAL_ANSI_COLORS,
+  TERMINAL_ANSI_COLOR_ROLES,
+  type TerminalAnsiColorRole,
+} from "@t3tools/shared/themePalettes";
 import * as Schema from "effect/Schema";
 import { AsyncResult } from "effect/reactivity";
 import {
@@ -235,49 +241,15 @@ function parseTerminalColor(value: string, fallback: GhosttyColor): GhosttyColor
   };
 }
 
-function hexToGhosttyColor(hex: string): GhosttyColor {
-  const value = Number.parseInt(hex.slice(1), 16);
-  return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 };
+/** `terminalAnsiBrightBlack` reads `--terminal-ansi-bright-black`. */
+function terminalAnsiVariable(role: TerminalAnsiColorRole): string {
+  const slot = role
+    .slice("terminalAnsi".length)
+    .replace(/[A-Z]/g, (letter, index: number) =>
+      index === 0 ? letter.toLowerCase() : `-${letter.toLowerCase()}`,
+    );
+  return `--terminal-ansi-${slot}`;
 }
-
-const TERMINAL_PALETTES = {
-  light: [
-    "#000000",
-    "#cd3131",
-    "#107c10",
-    "#949800",
-    "#0451a5",
-    "#bc05bc",
-    "#0598bc",
-    "#555555",
-    "#666666",
-    "#cd3131",
-    "#14ce14",
-    "#b5ba00",
-    "#0451a5",
-    "#bc05bc",
-    "#0598bc",
-    "#a5a5a5",
-  ].map(hexToGhosttyColor),
-  dark: [
-    "#000000",
-    "#cd3131",
-    "#0dbc79",
-    "#e5e510",
-    "#2472c8",
-    "#bc3fbc",
-    "#11a8cd",
-    "#e5e5e5",
-    "#666666",
-    "#f14c4c",
-    "#23d18b",
-    "#f5f543",
-    "#3b8eea",
-    "#d670d6",
-    "#29b8db",
-    "#e5e5e5",
-  ].map(hexToGhosttyColor),
-};
 
 // Read visibility when WASM finishes loading, not when setup starts.
 function withLiveVisibility(
@@ -382,7 +354,16 @@ export function terminalThemeFromApp(mountElement?: HTMLElement | null): Ghostty
       terminalCursor,
       isDark ? { r: 180, g: 203, b: 255 } : { r: 38, g: 56, b: 78 },
     ),
-    palette: TERMINAL_PALETTES[isDark ? "dark" : "light"],
+    palette: TERMINAL_ANSI_COLOR_ROLES.map((role) => {
+      const variable = terminalAnsiVariable(role);
+      const fallback = (
+        isDark ? T3_CODE_DARK_TERMINAL_ANSI_COLORS : T3_CODE_LIGHT_TERMINAL_ANSI_COLORS
+      )[role];
+      return parseTerminalColor(
+        readThemeColor(themeStyles, variable, readThemeColor(rootThemeStyles, variable, fallback)),
+        { r: 0, g: 0, b: 0 },
+      );
+    }),
     selectionBackground: terminalSelection,
   };
 }
