@@ -222,6 +222,7 @@ import {
   makeProviderRetryTurnItem,
 } from "@t3tools/provider-core/server/failure";
 import { turnScopedSelectionTransition } from "@t3tools/provider-core/server/selectionTransition";
+import { ProviderThreadEnvironment } from "@t3tools/provider-core/server/threadEnvironment";
 import { providerMessageTextWithAttachmentPaths } from "@t3tools/provider-core/server/attachmentPrompt";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import {
@@ -3286,11 +3287,14 @@ function parseClaudeBackgroundTaskEntry(
   });
 }
 
-function fileNameFromClaudeTool(toolName: string, input: ClaudeNativeToolInput): string {
-  return (
-    firstStringInputField(input, ["file_path", "notebook_path", "path", "filename", "fileName"]) ??
-    `${toolName} result`
-  );
+const CLAUDE_FILE_PATH_FIELDS = ["file_path", "notebook_path", "path", "filename", "fileName"];
+
+/** Write's structured result says whether it created the file; other file tools update one. */
+function claudeFileChangeOperation(output: ClaudeNativeToolOutput): "add" | "update" {
+  const value = output.type === "structured_tool_use_result" ? output.value : undefined;
+  return typeof value === "object" && value !== null && Reflect.get(value, "type") === "create"
+    ? "add"
+    : "update";
 }
 
 type ClaudeNativeToolOutput =
@@ -3486,7 +3490,7 @@ function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInp
   if (command !== undefined) {
     return `${toolName}: ${command.slice(0, 400)}`;
   }
-  const path = firstStringInputField(input, ["file_path", "path", "filename", "fileName"]);
+  const path = firstStringInputField(input, CLAUDE_FILE_PATH_FIELDS);
   if (path !== undefined) {
     return `${toolName}: ${path.slice(0, 400)}`;
   }
@@ -6164,6 +6168,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               ? readPath
               : undefined;
           const itemType = input.classification.itemType;
+          const filePath =
+            itemType === "file_change"
+              ? firstStringInputField(input.toolInput, CLAUDE_FILE_PATH_FIELDS)
+              : undefined;
           const webSearchPatterns = webSearchPatternsFromClaudeTool({
             toolInput: input.toolInput,
             output: input.output,
@@ -6189,7 +6197,14 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 ? {
                     ...itemBase,
                     type: "file_change",
-                    fileName: fileNameFromClaudeTool(input.toolName, input.toolInput),
+                    fileName: filePath ?? `${input.toolName} result`,
+                    ...(filePath === undefined
+                      ? {}
+                      : {
+                          changes: [
+                            { operation: claudeFileChangeOperation(input.output), path: filePath },
+                          ],
+                        }),
                     ...(outputText.length === 0 ? {} : { diffStr: outputText }),
                   }
                 : itemType === "web_search"
@@ -11032,6 +11047,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             turnInput.nativeThreadHasTurns ?? turnInput.providerTurnOrdinal > 1;
           const shouldResume =
             resumeSessionAt !== undefined || openedWithResume || hasPersistedProviderTurn;
+          const threadEnvironment = yield* (yield* ProviderThreadEnvironment).forThread(
+            turnInput.threadId,
+          );
           const toolSearchOverride = yield* resolveToolSearchOverride(
             turnInput.runtimePolicy.cwd,
             launchArgSettings,
@@ -11053,7 +11071,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               ? {}
               : { sdkSettings: claudeSdkLaunchArgSettings(launchArgSettings) }),
             environment: claudeQueryEnvironment(
-              adapterOptions.environment,
+              { ...adapterOptions.environment, ...threadEnvironment },
               turnInput.appThread,
               turnInput.appThread.lineage.relationshipToParent === "subagent"
                 ? yield* resolveSubagentPromptCacheTtl(turnInput.runtimePolicy.cwd)

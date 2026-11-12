@@ -144,6 +144,10 @@ import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as ProjectEnrichment from "./project/ProjectEnrichmentService.ts";
 import * as ProjectService from "./project/ProjectService.ts";
+import * as JjThreadWork from "./jj/JjThreadWork.ts";
+import * as JjTurnService from "./jj/JjTurnService.ts";
+import * as JjWorkflow from "./jj/JjWorkflow.ts";
+import * as ManagedWorkspaces from "./workspace/ManagedWorkspaces.ts";
 import {
   layerWsRpc,
   resolveOpenDiscoveryForConfig,
@@ -771,6 +775,13 @@ it.effect("shell snapshots omit idle children and older settled threads only on 
 );
 
 // Build the production RPC layer; unrelated capabilities fail if this test calls them.
+// `layerWsRpc` serves upstream's RPCs; the fork's come from their own handler layer.
+const UpstreamWsRpcGroup = WsRpcGroup.omit(
+  "vcs.jj.runAction",
+  "vcs.jj.assignPaths",
+  "vcs.jj.threadWork",
+);
+
 const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(DocumentText.DocumentText)({}),
   Layer.mock(ServerSecretStore.ServerSecretStore)({}),
@@ -842,6 +853,10 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
   Layer.mock(ThreadManagement.ThreadManagementService)({}),
   Layer.mock(ThreadSearch.ThreadSearch)({}),
+  Layer.mock(JjThreadWork.JjThreadWork)({}),
+  Layer.mock(JjTurnService.JjTurnService)({}),
+  Layer.mock(JjWorkflow.JjWorkflow)({}),
+  Layer.mock(ManagedWorkspaces.ManagedWorkspaces)({}),
   Layer.mock(UsageService.UsageService)({}),
   Layer.mock(VcsProvisioningService.VcsProvisioningService)({}),
   Layer.mock(VcsStatusBroadcaster.VcsStatusBroadcaster)({}),
@@ -1568,7 +1583,7 @@ it.effect("a publish whose push fails still refreshes the new remote", () =>
       Layer.mock(ServerEnvironment.ServerEnvironment)({}),
       Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
     );
-    const server = yield* RpcServer.makeNoSerialization(WsRpcGroup, {
+    const server = yield* RpcServer.makeNoSerialization(UpstreamWsRpcGroup, {
       ...WS_RPC_SERVER_OPTIONS,
       onFromServer: (response) =>
         response._tag === "Exit" ? Queue.offer(exits, response.exit._tag) : Effect.void,

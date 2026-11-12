@@ -63,6 +63,7 @@ import * as ProviderLatestVersions from "@t3tools/provider-core/server/ProviderL
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as OpenCodeRuntime from "@t3tools/provider-opencode/server/OpenCodeRuntime";
 import * as OpenCodeServerLedger from "@t3tools/provider-opencode/server/OpenCodeServerLedger";
+import * as ProviderThreadEnvironment from "./provider/ProviderThreadEnvironment.ts";
 import * as ProviderHostLive from "./provider/ProviderHostLive.ts";
 import * as DocumentText from "./provider/DocumentText.ts";
 import * as AcpRegistrySupport from "@t3tools/provider-acp-registry/server/AcpRegistrySupport";
@@ -128,6 +129,14 @@ import * as VcsProjectConfig from "./vcs/VcsProjectConfig.ts";
 import * as VcsProcess from "./vcs/VcsProcess.ts";
 import * as VcsProvisioningService from "./vcs/VcsProvisioningService.ts";
 import * as VcsStatusBroadcaster from "./vcs/VcsStatusBroadcaster.ts";
+import * as JjCli from "./vcs/JjCli.ts";
+import * as JjCommitWriter from "./jj/JjCommitWriter.ts";
+import * as JjStatusReader from "./jj/JjStatusReader.ts";
+import * as JjThreadLayer from "./jj/JjThreadLayer.ts";
+import * as JjTurnHooks from "./jj/JjTurnHooks.ts";
+import * as JjTurnService from "./jj/JjTurnService.ts";
+import * as JjThreadWork from "./jj/JjThreadWork.ts";
+import * as JjWorkflow from "./jj/JjWorkflow.ts";
 import * as ProjectCloneTracker from "./project/ProjectCloneTracker.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
 import * as ReviewService from "./review/ReviewService.ts";
@@ -474,6 +483,7 @@ const layerVcs = Layer.empty.pipe(
   Layer.provideMerge(
     VcsStatusBroadcaster.layer.pipe(
       Layer.provide(layerGitWorkflow),
+      Layer.provide(JjStatusReader.layer.pipe(Layer.provide(JjCli.layer))),
       Layer.provide(VcsStatusBroadcaster.layerAutomaticFetchInterval),
       // The orchestration runtime also consumes the broadcaster (run
       // finalization), so the policy cannot read the store from the runtime's
@@ -483,6 +493,15 @@ const layerVcs = Layer.empty.pipe(
       ),
     ),
   ),
+);
+
+// One JjCli instance, so seals, reverts and actions share its working-copy locks.
+const layerJj = Layer.mergeAll(JjWorkflow.layer, JjThreadWork.layer, JjStatusReader.layer).pipe(
+  Layer.provideMerge(JjTurnService.layer),
+  Layer.provideMerge(JjCommitWriter.layer),
+  Layer.provideMerge(JjThreadLayer.layer),
+  Layer.provideMerge(JjCli.layer),
+  Layer.provide(Layer.merge(ProjectionStoreV2.layer, ProjectStore.layer)),
 );
 
 const layerCheckpointStore = CheckpointStore.layer.pipe(Layer.provide(layerVcsDriverRegistry));
@@ -686,6 +705,10 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   Layer.effectDiscard(ProjectSettingsOverrideSweep.sweep),
 ).pipe(
   Layer.provideMerge(layerOrchestrationApplication),
+  // References read by request fibers too (revert admission, session opens),
+  // so they join the runtime context rather than one layer's construction.
+  Layer.provideMerge(Layer.merge(JjTurnHooks.layer, ProviderThreadEnvironment.layer)),
+  Layer.provideMerge(layerJj),
   Layer.provideMerge(RuntimeLayer.layerEventInfrastructure),
   Layer.provideMerge(Layer.merge(ProjectStore.layer, ThreadSearch.layer)),
   Layer.provideMerge(SecretResolver.layer),

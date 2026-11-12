@@ -9,6 +9,37 @@ import {
 
 import { openCodeToolOutput, openCodeToolTurnItem } from "./toolItems.ts";
 
+const runningItem = {
+  id: TurnItemId.make("item"),
+  threadId: ThreadId.make("thread"),
+  runId: null,
+  nodeId: null,
+  providerThreadId: null,
+  providerTurnId: null,
+  nativeItemRef: null,
+  parentItemId: null,
+  ordinal: 0,
+  status: "running" as const,
+  title: null,
+  startedAt: null,
+  completedAt: null,
+  updatedAt: DateTime.makeUnsafe(0),
+};
+
+const patchText = [
+  "*** Begin Patch",
+  "*** Update File: src/a.ts",
+  "@@",
+  "-a",
+  "+b",
+  "*** Update File: src/old.ts",
+  "*** Move to: src/new.ts",
+  "*** Add File: src/c.ts",
+  "+c",
+  "*** Delete File: src/d.ts",
+  "*** End Patch",
+].join("\n");
+
 describe("openCodeToolOutput", () => {
   it("preserves inline raster file content and leaves other files unserved", () => {
     const output = openCodeToolOutput("Preview complete", [
@@ -90,5 +121,60 @@ describe("openCodeToolTurnItem", () => {
       },
     );
     expect(item).toMatchObject({ type: "file_change", fileName: "src/index.ts", ...expected });
+  });
+
+  it("names every file of a running apply_patch from its headers", () => {
+    const item = openCodeToolTurnItem(runningItem, {
+      name: "apply_patch",
+      input: { patchText },
+      output: undefined,
+      completedMetadata: undefined,
+    });
+    expect(item).toMatchObject({
+      fileName: "src/a.ts",
+      changes: [
+        { operation: "update", path: "src/a.ts" },
+        { operation: "move", path: "src/new.ts", oldPath: "src/old.ts" },
+        { operation: "add", path: "src/c.ts" },
+        { operation: "delete", path: "src/d.ts" },
+      ],
+    });
+  });
+
+  it("prefers the finished apply_patch metadata", () => {
+    const item = openCodeToolTurnItem(runningItem, {
+      name: "apply_patch",
+      input: { patchText },
+      output: "Success.",
+      completedMetadata: {
+        diff: "diff",
+        files: [
+          { filePath: "/w/src/a.ts", relativePath: "src/a.ts", type: "update" },
+          {
+            filePath: "/w/src/old.ts",
+            relativePath: "src/new.ts",
+            type: "move",
+            movePath: "/w/src/new.ts",
+          },
+        ],
+      },
+    });
+    expect(item).toMatchObject({
+      fileName: "/w/src/a.ts",
+      changes: [
+        { operation: "update", path: "/w/src/a.ts" },
+        { operation: "move", path: "/w/src/new.ts", oldPath: "/w/src/old.ts" },
+      ],
+    });
+  });
+
+  it("reports the bash workdir as the command cwd", () => {
+    const item = openCodeToolTurnItem(runningItem, {
+      name: "bash",
+      input: { command: "ls", workdir: "/w/sub" },
+      output: undefined,
+      completedMetadata: undefined,
+    });
+    expect(item).toMatchObject({ type: "command_execution", input: "ls", cwd: "/w/sub" });
   });
 });

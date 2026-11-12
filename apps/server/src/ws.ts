@@ -102,6 +102,7 @@ import {
   type PullRequestRef,
   WS_METHODS,
   WsRpcGroup,
+  ForkWsRpcGroup,
 } from "@t3tools/contracts";
 import {
   HttpRouter,
@@ -212,6 +213,9 @@ import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
 import * as VcsStatusBroadcaster from "./vcs/VcsStatusBroadcaster.ts";
 import * as VcsProvisioningService from "./vcs/VcsProvisioningService.ts";
 import * as GitWorkflowService from "./git/GitWorkflowService.ts";
+import * as JjThreadWork from "./jj/JjThreadWork.ts";
+import * as JjTurnService from "./jj/JjTurnService.ts";
+import * as JjWorkflow from "./jj/JjWorkflow.ts";
 import { refreshPushedPullRequests } from "./git/refreshPushedPullRequests.ts";
 import { linkCreatedPullRequest } from "./git/linkCreatedPullRequest.ts";
 import * as ReviewService from "./review/ReviewService.ts";
@@ -664,12 +668,34 @@ const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 
 // Middleware added later wraps middleware added earlier, so instrumentation wraps authorization.
 const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
+// Fork RPCs register in a layer of their own, so upstream's handler map merges without conflicts.
+const ServerForkWsRpcGroup = ForkWsRpcGroup.middleware(RpcInstrumentation);
+const ServerUpstreamWsRpcGroup = ServerWsRpcGroup.omit(
+  WS_METHODS.vcsJjRunAction,
+  WS_METHODS.vcsJjAssignPaths,
+  WS_METHODS.vcsJjThreadWork,
+);
+
+const layerForkWsRpc = ServerForkWsRpcGroup.toLayer(
+  Effect.gen(function* () {
+    const jjWorkflow = yield* JjWorkflow.JjWorkflow;
+    const jjTurns = yield* JjTurnService.JjTurnService;
+    const jjThreadWork = yield* JjThreadWork.JjThreadWork;
+    return ServerForkWsRpcGroup.of({
+      [WS_METHODS.vcsJjRunAction]: (input) => jjWorkflow.runAction(input),
+      [WS_METHODS.vcsJjThreadWork]: (input) =>
+        jjThreadWork.find(input.threadId).pipe(Effect.map((repositories) => ({ repositories }))),
+      [WS_METHODS.vcsJjAssignPaths]: (input) =>
+        jjTurns.assignPaths(input).pipe(Effect.map((assigned) => ({ assigned }))),
+    });
+  }),
+);
 
 // RpcGroup.toLayer derives each handler's requirements by scanning every RPC in
 // the group, so its type cost grows with handlers × RPCs. Near 200 methods that
 // crosses TypeScript's instantiation limit and the layer's requirements degrade to
 // `any`, so the handlers are registered as two disjoint, smaller groups.
-type ServerWsRpc = RpcGroup.Rpcs<typeof ServerWsRpcGroup>;
+type ServerWsRpc = RpcGroup.Rpcs<typeof ServerUpstreamWsRpcGroup>;
 const SPLIT_WS_RPC_PREFIXES = ["server", "pullRequests", "provider", "orchestration"] as const;
 type SplitWsRpc = Extract<
   ServerWsRpc,
@@ -679,7 +705,7 @@ const isSplitWsRpc = (rpc: ServerWsRpc): rpc is SplitWsRpc =>
   SPLIT_WS_RPC_PREFIXES.some((prefix) => rpc._tag.startsWith(`${prefix}.`));
 const isOtherWsRpc = (rpc: ServerWsRpc): rpc is Exclude<ServerWsRpc, SplitWsRpc> =>
   !isSplitWsRpc(rpc);
-const serverWsRpcs = Array.from(ServerWsRpcGroup.requests.values());
+const serverWsRpcs = Array.from(ServerUpstreamWsRpcGroup.requests.values());
 const SplitWsRpcGroup = RpcGroup.make(...serverWsRpcs.filter(isSplitWsRpc));
 const OtherWsRpcGroup = RpcGroup.make(...serverWsRpcs.filter(isOtherWsRpc));
 // Replaying each intervening event costs a shell refetch; past this gap a
@@ -2050,7 +2076,7 @@ export const layerWsRpc = (
         return yield* mutateProjectWithClone(projectService, projectCloneTracker, mutation);
       });
 
-      const handlers = ServerWsRpcGroup.of({
+      const handlers = ServerUpstreamWsRpcGroup.of({
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": command.commandId,
@@ -3606,6 +3632,7 @@ export const layer = Layer.unwrap(
               reportProfiles,
               readSettingsClient(url.value),
             ).pipe(
+              Layer.merge(layerForkWsRpc),
               Layer.provideMerge(RpcSerialization.layerJson),
               // Handler-context reporters see only request defects, not server-wide defects.
               Layer.provide(DefectReporter.layer),

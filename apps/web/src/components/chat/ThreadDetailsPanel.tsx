@@ -5,6 +5,7 @@ import type {
   ProjectScript,
   ResolvedKeybindingsConfig,
   ThreadId,
+  VcsDriverKind,
 } from "@t3tools/contracts";
 
 import type { DraftId } from "../../composerDraftStore";
@@ -12,6 +13,7 @@ import { useT3ProjectFileScripts } from "../../hooks/useT3ProjectFileScripts";
 import { type EnvMode, type EnvironmentOption } from "../BranchToolbar.logic";
 import { BranchToolbar } from "../BranchToolbar";
 import BaseGitActionsControl from "../GitActionsControl";
+import { JjStackControl } from "../JjStackControl";
 import ProjectScriptsControl, {
   type NewProjectScriptInput,
   type ProjectScriptActionResult,
@@ -62,6 +64,7 @@ interface ThreadDetailsPanelProps extends Pick<
   openInShortcutEnabled: boolean;
   gitCwd: string | null;
   isGitRepo: boolean;
+  vcsKind?: VcsDriverKind | undefined;
   envLocked: boolean;
   availableEnvironments: readonly EnvironmentOption[];
   autoEnvironmentLabel?: string | undefined;
@@ -158,6 +161,10 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
             props.gitCwd !== null &&
             props.activeProjectName !== undefined &&
             (visible.gitActions || (visible.changes && props.isGitRepo)),
+          jj:
+            props.gitCwd !== null &&
+            props.vcsKind === "jj" &&
+            (visible.branch || visible.gitActions || visible.changes),
         };
         return (
           <>
@@ -212,7 +219,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 </ThreadDetailsSection>
               ) : null}
 
-              {props.gitCwd && (show.branch || show.git) ? (
+              {props.gitCwd && (show.jj || show.branch || show.git) ? (
                 <ThreadDetailsSection
                   headingId="thread-details-version-control-heading"
                   title="Version Control"
@@ -220,20 +227,36 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                   separated={density === "full"}
                 >
                   <div className="flex flex-col">
-                    {show.branch ? (
-                      <BranchToolbar layout="panel" panelSection="branch" {...branchToolbarProps} />
-                    ) : null}
-                    {show.git ? (
-                      <GitActionsControl
-                        compact={density !== "full"}
-                        showActions={visible.gitActions}
-                        showChanges={visible.changes}
-                        gitCwd={props.gitCwd}
-                        activeThreadRef={activeThreadRef}
-                        {...(props.draftId ? { draftId: props.draftId } : {})}
+                    {props.vcsKind === "jj" ? (
+                      <JjStackControl
+                        displayMode="panel"
+                        environmentId={props.environmentId}
+                        threadId={props.threadId}
+                        cwd={props.gitCwd}
                         {...(props.onOpenChanges ? { onOpenChanges: props.onOpenChanges } : {})}
                       />
-                    ) : null}
+                    ) : (
+                      <>
+                        {show.branch ? (
+                          <BranchToolbar
+                            layout="panel"
+                            panelSection="branch"
+                            {...branchToolbarProps}
+                          />
+                        ) : null}
+                        {show.git ? (
+                          <GitActionsControl
+                            compact={density !== "full"}
+                            showActions={visible.gitActions}
+                            showChanges={visible.changes}
+                            gitCwd={props.gitCwd}
+                            activeThreadRef={activeThreadRef}
+                            {...(props.draftId ? { draftId: props.draftId } : {})}
+                            {...(props.onOpenChanges ? { onOpenChanges: props.onOpenChanges } : {})}
+                          />
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 </ThreadDetailsSection>
               ) : null}

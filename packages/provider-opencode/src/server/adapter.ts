@@ -70,6 +70,7 @@ import { readableProviderErrorMessage } from "./providerErrorMessage.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import { makeProviderFailure } from "@t3tools/provider-core/server/failure";
 import { turnScopedSelectionTransition } from "@t3tools/provider-core/server/selectionTransition";
+import { ProviderThreadEnvironment } from "@t3tools/provider-core/server/threadEnvironment";
 import { providerMessageTextWithAttachmentPaths } from "@t3tools/provider-core/server/attachmentPrompt";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import {
@@ -949,6 +950,11 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
       function* (input: ProviderAdapter.ProviderAdapterV2OpenSessionInput) {
         const scope = yield* Effect.scope;
         const cwd = input.runtimePolicy.cwd ?? host.paths.cwd;
+        // The environment only reaches a server T3 spawns for this session.
+        const environment = yield* (yield* ProviderThreadEnvironment).forOpenCodeServer(
+          input.threadId,
+          options.environment,
+        );
         const connection = yield* runtime.connectToOpenCodeServer({
           binaryPath: options.settings.binaryPath,
           directory: cwd,
@@ -956,7 +962,7 @@ export const makeOpenCodeAdapterV2 = Effect.fn("makeOpenCodeAdapterV2")(function
           ...(settingsSecretLiteral(options.settings.serverPassword)
             ? { serverPassword: settingsSecretLiteral(options.settings.serverPassword) }
             : {}),
-          environment: options.environment,
+          environment,
         });
         const client = runtime.createOpenCodeSdkClient({
           baseUrl: connection.url,

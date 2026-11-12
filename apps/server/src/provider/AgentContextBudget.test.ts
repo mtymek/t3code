@@ -13,6 +13,9 @@ import { ServerConfig } from "../config.ts";
 import { DeviceService } from "../device/DeviceService.ts";
 import { ServerEnvironment } from "../environment/ServerEnvironment.ts";
 import { GitWorkflowService } from "../git/GitWorkflowService.ts";
+import { JjStatusReader } from "../jj/JjStatusReader.ts";
+import { JjThreadWork } from "../jj/JjThreadWork.ts";
+import { JjWorkflow } from "../jj/JjWorkflow.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
 import { PreviewAutomationBroker } from "../mcp/PreviewAutomationBroker.ts";
 import {
@@ -41,6 +44,7 @@ import { ServerSettingsService } from "../serverSettings.ts";
 import { SourceControlRepositoryService } from "../sourceControl/SourceControlRepositoryService.ts";
 import { GitVcsDriver } from "../vcs/GitVcsDriver.ts";
 import { VcsStatusBroadcaster } from "../vcs/VcsStatusBroadcaster.ts";
+import { ManagedWorkspaces } from "../workspace/ManagedWorkspaces.ts";
 import { buildCodexAdditionalContext } from "./CodexDeveloperInstructions.ts";
 import { DocumentText } from "./DocumentText.ts";
 import { ProviderRegistry } from "./ProviderRegistry.ts";
@@ -53,7 +57,11 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(DocumentText)({}),
   Layer.mock(GitVcsDriver)({}),
   Layer.mock(GitWorkflowService)({}),
+  Layer.mock(JjStatusReader)({}),
+  Layer.mock(JjThreadWork)({}),
+  Layer.mock(JjWorkflow)({}),
   Layer.mock(ManagedProjectFolders)({ namedProjectsRoot: "" }),
+  Layer.mock(ManagedWorkspaces)({}),
   Layer.mock(McpProviderSessions)({}),
   Layer.mock(OrchestratorV2)({}),
   Layer.mock(PeerForwarding)({}),

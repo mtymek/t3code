@@ -191,6 +191,7 @@ import {
   isForkableSourceRunStatus,
   ThreadForkServiceV2,
 } from "./ThreadForkService.ts";
+import { VcsTurnHooks } from "./VcsTurnHooks.ts";
 import { planThreadDeletion } from "./ThreadDeletion.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ServerSettings from "../serverSettings.ts";
@@ -1187,6 +1188,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const runtimePolicy = yield* RuntimePolicyV2;
   const threadForkService = yield* ThreadForkServiceV2;
+  const vcsTurnHooks = yield* VcsTurnHooks;
   const threadDispatch = yield* ThreadCommandExecutor.ThreadCommandExecutor;
   // Read once: the policy is fixed for the server's life, and dispatch takes it as an input.
   const { managedPolicy } = serverSettings;
@@ -4951,7 +4953,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         type: "fork",
       }),
     );
-    const { targetThread, transfer } = yield* threadForkService
+    const planned = yield* threadForkService
       .plan({
         sourceProjection,
         sourceRun,
@@ -4973,6 +4975,20 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         createdAt: now,
       })
       .pipe(mapDispatchError(command));
+    // A side chat works in its parent's checkout and sees the parent's live edits.
+    const forkWorkspace =
+      command.sideChat === true
+        ? null
+        : yield* vcsTurnHooks.prepareForkWorkspace({
+            sourceThreadId: command.sourceThreadId,
+            targetThreadId: command.targetThreadId,
+            title: planned.targetThread.title,
+          });
+    const targetThread =
+      forkWorkspace === null
+        ? planned.targetThread
+        : { ...planned.targetThread, worktreePath: forkWorkspace };
+    const { transfer } = planned;
 
     yield* emitEvent({
       type: "thread.created",
@@ -5099,6 +5115,22 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       });
     }
 
+    // A fork in its own jj workspace brings its changes back with the context.
+    yield* vcsTurnHooks
+      .mergeBackFiles({
+        sourceThreadId: command.sourceThreadId,
+        targetThreadId: command.targetThreadId,
+      })
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new OrchestratorDispatchError({
+              commandId: command.commandId,
+              commandType: command.type,
+              cause: cause.message,
+            }),
+        ),
+      );
     const sourceProviderThread = providerThreadForRun(sourceProjection, sourceRun);
     const now = command.createdAt ?? (yield* DateTime.now);
     const emitEvent = emit(events, command);
