@@ -20,8 +20,10 @@ How the jj patch is selected and refreshed is in [hauke-jj/README.md](hauke-jj/R
 
 ## Fork-only changes outside the jj patch
 
-- **`.github/workflows/fork-release.yml`** builds the Linux x64 and arm64 CLI archives, and macOS arm64 when asked, then publishes them as a GitHub release.
+- **`.github/workflows/fork-release.yml`** builds the Linux x64 and arm64 CLI archives and desktop AppImages, and the macOS arm64 CLI archive when asked, then publishes them as a GitHub release.
   - It reuses upstream's `release-desktop.yml` without editing it.
+  - A desktop app built there takes `mtymek/t3code` as its update feed (`GITHUB_REPOSITORY` in `scripts/build-desktop-artifact.ts`), so it updates itself from this fork's releases through `latest-linux*.yml`.
+  - The macOS desktop app is not published: an ad-hoc signed app cannot install its own updates.
 - **`packages/shared/src/cliRelease.ts`** sets `CLI_RELEASE_REPOSITORY` to `"mtymek/t3code"`.
   - `t3 update` and server self-updates read releases from this fork.
   - `T3CODE_RELEASE_BASE_URL` and a managed-policy update mirror still override it.
@@ -114,6 +116,28 @@ To check a published archive the way `t3 update` does:
 3. Unpack it and run `t3 --version`. It must print `t3 v<version>`.
 
 ## Installing on a machine
+
+A machine has up to two parts to install: the T3 background service, and the desktop app if it uses one.
+
+### Desktop app (Linux)
+
+The desktop app shows the web UI it was built with, so fork UI changes appear only in a fork desktop app. It also writes `~/.t3/bin/t3`, the `t3` command, to run its own bundled CLI. With the upstream app, that `t3` reports the upstream version and looks for releases on `pingdotgg/t3code`.
+
+Install the fork app once, from a plain terminal, with the app quit. The AppImage path is wherever the machine keeps it:
+
+```sh
+app=~/.local/share/t3code/T3-Code.AppImage
+version=0.1.9-mtymek.3
+cp "$app" "$app.bak"
+curl -fL -o "$app.new" "https://github.com/mtymek/t3code/releases/download/v$version/T3-Code-$version-x86_64.AppImage"
+chmod +x "$app.new" && mv "$app.new" "$app"
+```
+
+Start the app once so it rewrites `~/.t3/bin/t3`. From then on the app updates itself from this fork, and `t3` is the fork's CLI. Use the `arm64` AppImage on arm64 machines.
+
+### Background service
+
+The service owns the T3 home, and a desktop app connects to it, so the two update separately. On a machine whose `t3` is already the fork's CLI, plain `t3 update` installs the newest fork release.
 
 A machine still on an upstream build needs the fork's address once. Its `t3` does not know the fork yet:
 
