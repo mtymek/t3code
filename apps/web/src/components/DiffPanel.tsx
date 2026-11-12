@@ -207,6 +207,8 @@ interface DiffPanelProps {
   composerDraftTarget: ScopedThreadRef | DraftId;
   workspaceMutationId: string | null;
   visible: boolean;
+  /** The thread to diff; defaults to the route's thread. */
+  threadRef?: ScopedThreadRef | undefined;
 }
 
 export default function DiffPanel({
@@ -214,6 +216,7 @@ export default function DiffPanel({
   composerDraftTarget,
   workspaceMutationId,
   visible,
+  threadRef,
 }: DiffPanelProps) {
   const resolvedTheme = useRenderedAppearance();
   const settings = useClientSettings((settings) => ({
@@ -238,7 +241,8 @@ export default function DiffPanel({
   // The open commit menu keeps the list it opened with, so rows do not move under the pointer.
   const [openCommitMenu, setOpenCommitMenu] = useState<ReviewBranchCommitsResult | null>(null);
 
-  const routeThreadRef = useThreadRouteRef();
+  const currentRouteThreadRef = useThreadRouteRef();
+  const routeThreadRef = threadRef ?? currentRouteThreadRef;
   const activeThreadId = routeThreadRef?.threadId ?? null;
   const activeThread = useQuietThreadShell(routeThreadRef);
   const fileAccess = useFilesystemReadAccess(activeThread?.environmentId ?? null);

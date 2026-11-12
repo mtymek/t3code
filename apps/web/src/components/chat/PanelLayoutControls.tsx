@@ -5,7 +5,7 @@ import {
   Maximize2Icon,
   Minimize2Icon,
 } from "lucide-react";
-import { memo, type ReactNode, useLayoutEffect, useRef } from "react";
+import { memo, use, type ReactNode, useLayoutEffect, useRef } from "react";
 
 import { cn } from "~/lib/utils";
 
@@ -14,6 +14,7 @@ import { PopoverCreateHandle, PopoverTrigger } from "../ui/popover";
 import { useMobileSidebarSheetMounted } from "../ui/sidebar";
 import { Toggle } from "../ui/toggle";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { LayoutPaneContext } from "../../workspaceLayout/paneLabels";
 
 /** Matches the right inset of `ThreadPanelHeaderControl`. */
 const THREAD_PANEL_HEADER_INSET_PX = 12;
@@ -221,11 +222,15 @@ export function WorkspaceTitlebarControls(props: {
   }, [rightPanelOpen, maximized]);
 
   const mobileSidebarSheetMounted = useMobileSidebarSheetMounted();
+  // In a layout pane the controls belong to that pane's header, not the window's corner.
+  const layoutPane = use(LayoutPaneContext);
+  const inLayoutPane = layoutPane !== null;
   return (
     <div
       ref={controlsRef}
       className={cn(
-        "pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] z-50 mr-px flex h-[var(--workspace-topbar-height)] items-center gap-1 [-webkit-app-region:no-drag]",
+        "pointer-events-none top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] z-50 mr-px flex h-[var(--workspace-topbar-height)] items-center gap-1 [-webkit-app-region:no-drag]",
+        inLayoutPane ? "absolute" : "fixed",
         mobileSidebarSheetMounted && "hidden",
       )}
       data-workspace-titlebar-controls
@@ -251,7 +256,10 @@ export function WorkspaceTitlebarControls(props: {
           />
         </span>
       ) : null}
-      <div className="pointer-events-auto flex h-full items-center">{props.children}</div>
+      <div className="pointer-events-auto flex h-full items-center gap-1">
+        {layoutPane?.headerActions}
+        {props.children}
+      </div>
     </div>
   );
 }

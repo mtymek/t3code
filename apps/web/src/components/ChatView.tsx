@@ -44,7 +44,10 @@ import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
 import { useLogicalProjectEnvironments } from "../hooks/useLogicalProjectEnvironments";
 import { useStableCallback } from "../hooks/useStableCallback";
 import { useProjectScriptEditing } from "./chat/useProjectScriptEditing";
-import { RightPanelSurfaceContent } from "./chat/RightPanelSurfaceContent";
+import {
+  RightPanelSurfaceContent,
+  type RightPanelSurfaceContentProps,
+} from "./chat/RightPanelSurfaceContent";
 import { usePendingThreadRequests } from "./chat/usePendingThreadRequests";
 import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import { visibleThreadPullRequests } from "@t3tools/shared/threadPullRequests";
@@ -125,6 +128,7 @@ import { resolveTerminalSessionLabel } from "@t3tools/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
 import {
   type MouseEvent as ReactMouseEvent,
+  type ReactElement,
   type SetStateAction,
   use,
   useEffect,
@@ -380,6 +384,8 @@ import { observeResize } from "~/lib/observeResize";
 import { ThreadVisitWatermark } from "./chat/ThreadVisitWatermark";
 import { ChatTerminalDrawers } from "./chat/ChatTerminalDrawers";
 import { ChatRightPanel } from "./chat/ChatRightPanel";
+import { LayoutSurfaceHost } from "../workspaceLayout/LayoutSurfaceHost";
+import { LayoutPaneContext } from "../workspaceLayout/paneLabels";
 import { useDraftEnvironmentRouting } from "./chat/useDraftEnvironmentRouting";
 import { branchMismatchBannerItem, extensionStatusBannerItem } from "./chat/ThreadActivityBanners";
 import { ThreadNow } from "./chat/ThreadNow";
@@ -1680,6 +1686,7 @@ export default function ChatView(props: ChatViewProps) {
   });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const backgroundThread = use(BackgroundThreadContext);
+  const layoutPane = use(LayoutPaneContext);
   const scriptKeybindings =
     useAtomValue(serverEnvironment.configValueAtom(environmentId))?.keybindings ??
     DEFAULT_RESOLVED_KEYBINDINGS;
@@ -2167,7 +2174,8 @@ export default function ChatView(props: ChatViewProps) {
   useFocusComposerOnThreadOpen(
     activeThreadRef,
     workspaceLayoutElement,
-    !embedded,
+    // A layout chat pane without focus must not take the caret from the pane that has it.
+    !embedded && !backgroundThread,
     terminalUiState.terminalOpen,
     isCoarsePointer ? ignoreComposerFocus : focusComposerStable,
   );
@@ -2179,7 +2187,9 @@ export default function ChatView(props: ChatViewProps) {
       !activeThread?.id ||
       terminalUiState.terminalOpen ||
       isMobileViewport ||
-      isCoarsePointer
+      isCoarsePointer ||
+      // A layout chat pane without focus leaves the caret to the pane that has it.
+      backgroundThread
     ) {
       return;
     }
@@ -2207,6 +2217,7 @@ export default function ChatView(props: ChatViewProps) {
     };
   }, [
     activeThread?.id,
+    backgroundThread,
     embedded,
     focusComposerStable,
     isCoarsePointer,
@@ -3235,7 +3246,7 @@ export default function ChatView(props: ChatViewProps) {
     return embedded ? null : <NoActiveThreadState />;
   }
 
-  const rightPanelContent = activeThreadRef ? (
+  const rightPanelContent: ReactElement<RightPanelSurfaceContentProps> | null = activeThreadRef ? (
     <RightPanelSurfaceContent
       surface={renderedRightPanelSurface}
       activeSurfaceId={activeRightPanelSurface?.id ?? null}
@@ -3306,12 +3317,15 @@ export default function ChatView(props: ChatViewProps) {
     <PanelLayoutControls
       {...panelToggleControlProps}
       showThreadPanelControl={!inlineRightPanelOwnsTitleBar}
+      // In a layout pane, terminals and panels open as panes from the layout's controls.
+      showTerminalControl={!layoutPane}
+      showRightPanelControl={!layoutPane}
     />
   );
   const threadPanelHeaderControl = <ThreadPanelHeaderControl {...panelToggleControlProps} />;
   const panelLayoutControls = (
     <WorkspaceTitlebarControls
-      showMaximizeControl={!shouldUsePlanSidebarSheet}
+      showMaximizeControl={!shouldUsePlanSidebarSheet && !layoutPane}
       rightPanelOpen={rightPanelOpen}
       animationsActive={panelAnimationsActive}
       maximized={rightPanelMaximized}
@@ -3993,7 +4007,20 @@ export default function ChatView(props: ChatViewProps) {
         )}
       </div>
 
-      {rightPanelPresent && activeThreadRef && !embedded ? (
+      {layoutPane && rightPanelContent && !embedded ? (
+        <LayoutSurfaceHost
+          paneId={layoutPane.paneId}
+          threadRef={rightPanelContent.props.threadRef}
+          surfaceProps={rightPanelContent.props}
+          onAddTerminal={addTerminalSurfaceStable}
+          onAddBrowser={createBrowserSurfaceStable}
+          onAddSideChat={sideChatsOffered ? openSideChatStable : undefined}
+          sideChatDisabledReason={
+            sideChat.available ? sideChatDisabledReason : "Side chats are not available here."
+          }
+        />
+      ) : null}
+      {rightPanelPresent && activeThreadRef && !embedded && !layoutPane ? (
         <ChatRightPanel
           sheet={shouldUsePlanSidebarSheet}
           workspaceLayoutElement={workspaceLayoutElement}

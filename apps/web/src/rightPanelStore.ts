@@ -171,6 +171,8 @@ interface RightPanelStoreState {
   ) => void;
   activateTerminal: (ref: ScopedThreadRef, surfaceId: string, terminalId: string) => void;
   closeTerminal: (ref: ScopedThreadRef, surfaceId: string, terminalId: string) => void;
+  /** Adds a surface without opening the panel, for a layout pane that shows it. */
+  ensureSurface: (ref: ScopedThreadRef, surface: RightPanelSurface) => void;
   activateSurface: (ref: ScopedThreadRef, surfaceId: string) => void;
   /** Agent-driven activation. Not a user action, so it does not move keyboard focus. */
   revealSurface: (ref: ScopedThreadRef, surfaceId: string) => void;
@@ -960,6 +962,14 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               ),
             };
           }),
+        ),
+      ensureSurface: (ref, surface) =>
+        set((state) =>
+          automaticUpdate(state, scopedThreadKey(ref), (current) =>
+            current.surfaces.some((entry) => entry.id === surface.id)
+              ? current
+              : { ...current, surfaces: [...current.surfaces, surface] },
+          ),
         ),
       activateSurface: (ref, surfaceId) =>
         set((state) =>

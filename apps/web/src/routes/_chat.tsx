@@ -7,16 +7,25 @@ import { resolveThreadRouteTarget } from "../threadRoutes";
 import { retainThreadFindForRoute } from "../components/chat/threadFindStore";
 import { ThreadLinkPrompt } from "../components/promptLinks/ThreadLinkPrompt";
 import { useShownThreadRouteTarget } from "../hooks/useShownThreadRouteTarget";
+import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useClientSettings } from "../hooks/useSettings";
+import { WorkspaceLayoutView } from "../workspaceLayout/WorkspaceLayoutView";
 
 function ChatRouteLayout() {
   // Render both routes here so draft promotion keeps the same ChatView mounted.
   const { shownTarget, modalOpen } = useShownThreadRouteTarget();
+  const flexibleLayoutEnabled = useClientSettings((settings) => settings.flexibleLayoutEnabled);
+  // Splits need room; narrow windows and phones keep the single chat.
+  const wideEnough = useMediaQuery("md");
+  const useFlexibleLayout = flexibleLayoutEnabled && wideEnough;
   return (
     <>
       {shownTarget?.kind === "server" && !modalOpen ? (
         <ThreadLinkPrompt threadRef={shownTarget.threadRef} />
       ) : null}
-      {shownTarget ? (
+      {shownTarget && useFlexibleLayout ? (
+        <WorkspaceLayoutView routeTarget={shownTarget} background={modalOpen} />
+      ) : shownTarget ? (
         <ThreadRouteView target={shownTarget} background={modalOpen} />
       ) : modalOpen ? (
         <SidebarInset className="h-dvh" />
