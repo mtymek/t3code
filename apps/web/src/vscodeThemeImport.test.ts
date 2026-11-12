@@ -59,6 +59,8 @@ const VSCODE_DARK = {
     "input.placeholderForeground": "#525252",
     "terminal.background": "#101010",
     "terminal.foreground": "#8a8a8a",
+    "terminal.ansiRed": "#ff5555",
+    "terminal.ansiBrightBlue": "#5555ff",
     "list.hoverBackground": "#1f3e5e59",
     "list.activeSelectionBackground": "#1f3e5e99",
   },
@@ -142,6 +144,10 @@ describe("VS Code theme import", () => {
     expect(asHex(theme.colors.accent)).toBe("#69b1ff");
     expect(asHex(theme.colors.sidebar)).toBe("#101010");
     expect(asHex(theme.colors.terminalBackground)).toBe("#101010");
+    expect(asHex(theme.colors.terminalAnsiRed)).toBe("#ff5555");
+    expect(asHex(theme.colors.terminalAnsiBrightBlue)).toBe("#5555ff");
+    // Unspecified ANSI slots keep the default dark palette.
+    expect(asHex(theme.colors.terminalAnsiGreen)).toBe("#0dbc79");
   });
 
   it("keeps a fallback placeholder dimmer than entered text", () => {

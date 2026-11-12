@@ -37,6 +37,11 @@ How the jj patch is selected and refreshed is in [hauke-jj/README.md](hauke-jj/R
   - `Ctrl+B` is the prefix (`v`/`-` split, `c` new tab, `h`/`j`/`k`/`l` move, `x` close, `z` zoom, `?` all keys). Pressing it twice sends one `Ctrl+B` to the focused pane.
   - New code is in `apps/web/src/workspaceLayout/`. It also edits 11 upstream files; `ChatView.tsx` is the one most likely to conflict.
   - In `ChatView.tsx` the patch reads `LayoutPaneContext`, hides the terminal and right-panel toggles in layout panes, renders `LayoutSurfaceHost` from `rightPanelContent.props`, and adds `backgroundThread` to the two composer-focus effects. Re-apply those when resolving a conflict there.
+- **Terminal ANSI palette in themes** (the `feat(web): themes set the terminal's 16 ANSI colors` commit).
+  - Themes gain `terminalAnsiBlack` … `terminalAnsiBrightWhite`, defaulting to the VS Code palettes the terminal used before. The VS Code importer maps `terminal.ansi*`, and the theme editor's advanced view has a Terminal palette group.
+  - Based on Mathias Aerts' branch for upstream Ideas discussion [#31385](https://github.com/pingdotgg/t3code/discussions/31385). Drop this commit if upstream merges that feature.
+  - Published theme files (`~/.t3/userdata/themes/`) may carry the new keys safely: builds without this patch ignore unknown roles there. A theme file imported through the editor's import does not; it is rejected.
+  - `ThemeEditorPanel.tsx`'s import block is the likely conflict.
 
 ## Versions
 
