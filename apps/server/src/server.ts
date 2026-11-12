@@ -74,6 +74,7 @@ import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderS
 import * as OpenCodeRuntime from "@t3tools/provider-opencode/server/OpenCodeRuntime";
 import * as OpenCodeServerLedger from "@t3tools/provider-opencode/server/OpenCodeServerLedger";
 import * as ProviderThreadEnvironment from "./provider/ProviderThreadEnvironment.ts";
+import * as ManagedWorkspaces from "./workspace/ManagedWorkspaces.ts";
 import * as ProviderHostLive from "./provider/ProviderHostLive.ts";
 import * as DocumentText from "./provider/DocumentText.ts";
 import * as AcpRegistrySupport from "@t3tools/provider-acp-registry/server/AcpRegistrySupport";
@@ -757,7 +758,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   // References read by request fibers too (revert admission, session opens),
   // so they join the runtime context rather than one layer's construction.
   Layer.provideMerge(Layer.merge(JjTurnHooks.layer, ProviderThreadEnvironment.layer)),
-  Layer.provideMerge(layerJj),
+  Layer.provideMerge(layerJj.pipe(Layer.provideMerge(ManagedWorkspaces.layer))),
   Layer.provideMerge(RuntimeLayer.layerEventInfrastructure),
   Layer.provideMerge(Layer.merge(ProjectStore.layer, ThreadSearch.layer)),
   Layer.provideMerge(SecretCheck.layer),

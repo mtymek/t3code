@@ -577,7 +577,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
             resetAction={
               settings.jjCommitTrailers !== DEFAULT_SERVER_SETTINGS.jjCommitTrailers ? (
                 <SettingResetButton
-                  label="jj commit trailers"
+                  ariaLabel="Reset jj commit trailers to default"
                   onClick={() =>
                     updateSettings({ jjCommitTrailers: DEFAULT_SERVER_SETTINGS.jjCommitTrailers })
                   }
@@ -606,7 +606,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
             resetAction={
               settings.jjStripTrailersRemotes.length > 0 ? (
                 <SettingResetButton
-                  label="remotes that strip T3 trailers"
+                  ariaLabel="Reset remotes that strip T3 trailers to default"
                   onClick={() => updateSettings({ jjStripTrailersRemotes: [] })}
                 />
               ) : null

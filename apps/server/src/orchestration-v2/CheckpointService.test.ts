@@ -128,7 +128,7 @@ it.effect(
           Layer.mergeAll(
             IdAllocator.layer,
             Layer.mock(CheckpointStore.CheckpointStore)({
-              isGitRepository: () => Effect.succeed(true),
+              isCheckpointable: () => Effect.succeed(true),
               hasCheckpointRef: ({ checkpointRef }) =>
                 Ref.get(refs).pipe(Effect.map((current) => current.has(checkpointRef))),
               captureCheckpoint: ({ checkpointRef }) =>
@@ -207,7 +207,7 @@ it.effect("records a repository probe failure as an error checkpoint, not a miss
         Layer.mergeAll(
           IdAllocator.layer,
           Layer.mock(CheckpointStore.CheckpointStore)({
-            isGitRepository: () =>
+            isCheckpointable: () =>
               Effect.fail(
                 new VcsProcessExitError({
                   operation: "GitVcsDriver.detectRepository",
@@ -282,7 +282,7 @@ it.effect("backs off only baseline retries after repeated workspace capture time
         Layer.mergeAll(
           IdAllocator.layer,
           Layer.mock(CheckpointStore.CheckpointStore)({
-            isGitRepository: () => Effect.succeed(true),
+            isCheckpointable: () => Effect.succeed(true),
             hasCheckpointRef: () => Effect.succeed(false),
             captureCheckpoint: () =>
               Effect.suspend(() => {

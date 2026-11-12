@@ -98,6 +98,7 @@ import {
   PersistChatAttachmentsError,
   RpcClientId,
   EnvironmentAuthorizationError,
+  GitCommandError,
   ThreadId,
   type TerminalMetadataStreamEvent,
   type PullRequestRef,
@@ -222,6 +223,7 @@ import * as GitWorkflowService from "./git/GitWorkflowService.ts";
 import * as JjThreadWork from "./jj/JjThreadWork.ts";
 import * as JjTurnService from "./jj/JjTurnService.ts";
 import * as JjWorkflow from "./jj/JjWorkflow.ts";
+import * as ManagedWorkspaces from "./workspace/ManagedWorkspaces.ts";
 import { refreshPushedPullRequests } from "./git/refreshPushedPullRequests.ts";
 import { linkCreatedPullRequest } from "./git/linkCreatedPullRequest.ts";
 import * as ReviewService from "./review/ReviewService.ts";
@@ -1558,6 +1560,7 @@ export const layerWsRpc = (
       const remoteOpenTargets = yield* RemoteOpenTargets.RemoteOpenTargets;
       const directEndpoints = yield* DirectEndpoints.DirectEndpoints;
       const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
+      const managedWorkspaces = yield* ManagedWorkspaces.ManagedWorkspaces;
       const review = yield* ReviewService.ReviewService;
       const vcsProvisioning = yield* VcsProvisioningService.VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
@@ -3246,8 +3249,21 @@ export const layerWsRpc = (
         [WS_METHODS.vcsListRefs]: (input) => gitWorkflow.listRefs(input),
         [WS_METHODS.vcsCreateWorktree]: (input) =>
           gitWorkflow.createWorktree(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
+        // A forked jj thread's workspace is a jj workspace, which jj must forget (patches/jujutsu.md).
         [WS_METHODS.vcsRemoveWorktree]: (input) =>
-          gitWorkflow.removeWorktree(input).pipe(
+          managedWorkspaces.removeJjWorkspace(input.path).pipe(
+            Effect.mapError(
+              (cause) =>
+                new GitCommandError({
+                  operation: cause.operation,
+                  command: "jj workspace forget",
+                  cwd: input.cwd,
+                  detail: cause.detail,
+                }),
+            ),
+            Effect.flatMap((removed) =>
+              removed ? Effect.void : gitWorkflow.removeWorktree(input),
+            ),
             Effect.tap(() => refreshGitStatus(input.cwd)),
             // Subscribers of the removed checkout learn it is no longer a repository.
             Effect.tap(() =>

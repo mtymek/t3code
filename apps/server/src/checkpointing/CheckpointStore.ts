@@ -48,6 +48,7 @@ export class CheckpointStore extends Context.Service<
   CheckpointStore,
   {
     /** Check whether cwd is inside a repository whose VCS driver can checkpoint it. */
+    readonly isGitRepository: (cwd: string) => Effect.Effect<boolean, CheckpointStoreError>;
     readonly isCheckpointable: (cwd: string) => Effect.Effect<boolean, CheckpointStoreError>;
 
     readonly captureCheckpoint: (
@@ -89,6 +90,14 @@ export const make = Effect.gen(function* () {
   });
 
   // The registry reads an unreadable repository as none; ask Git again so that fails here.
+  const isGitRepository: CheckpointStore["Service"]["isGitRepository"] = Effect.fn(
+    "CheckpointStore.isGitRepository",
+  )(function* (cwd) {
+    if ((yield* vcsRegistry.detect({ cwd, requestedKind: "git" })) !== null) return true;
+    const git = yield* vcsRegistry.get("git");
+    return (yield* git.detectRepository(cwd)) !== null;
+  });
+
   const isCheckpointable: CheckpointStore["Service"]["isCheckpointable"] = Effect.fn(
     "CheckpointStore.isCheckpointable",
   )(function* (cwd) {
@@ -141,6 +150,7 @@ export const make = Effect.gen(function* () {
   });
 
   return CheckpointStore.of({
+    isGitRepository,
     isCheckpointable,
     captureCheckpoint,
     hasCheckpointRef,

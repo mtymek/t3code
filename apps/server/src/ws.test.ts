@@ -1291,7 +1291,7 @@ it.effect("access changes made while the snapshot loads reach the client after i
       );
     const revokedElsewhere = AuthSessionId.make("revoked-elsewhere");
     const responses = yield* Queue.unbounded<AuthAccessStreamEvent>();
-    const server = yield* RpcServer.makeNoSerialization(WsRpcGroup, {
+    const server = yield* RpcServer.makeNoSerialization(UpstreamWsRpcGroup, {
       ...WS_RPC_SERVER_OPTIONS,
       onFromServer: (response) =>
         response._tag === "Chunk"
@@ -1955,7 +1955,7 @@ it.effect("a git action that fails partway still refreshes the repository status
       Layer.mock(ServerEnvironment.ServerEnvironment)({}),
       Layer.mock(EnvironmentAuth.EnvironmentAuth)({}),
     );
-    const server = yield* RpcServer.makeNoSerialization(WsRpcGroup, {
+    const server = yield* RpcServer.makeNoSerialization(UpstreamWsRpcGroup, {
       ...WS_RPC_SERVER_OPTIONS,
       onFromServer: (response) =>
         response._tag === "Exit" ? Queue.offer(exits, response.exit) : Effect.void,

@@ -414,15 +414,18 @@ describe("VcsStatusBroadcaster", () => {
       Effect.provide(
         VcsStatusBroadcaster.layer.pipe(
           Layer.provideMerge(
-            Layer.succeed(
-              FileSystem.FileSystem,
-              FileSystem.makeNoop({ realPath: (cwd) => Effect.succeed(cwd) }),
+            Layer.merge(
+              Layer.succeed(
+                FileSystem.FileSystem,
+                FileSystem.makeNoop({ realPath: (cwd) => Effect.succeed(cwd) }),
+              ),
+              Path.layer,
             ),
           ),
           Layer.provide(layerBackgroundPolicy(() => true)),
           Layer.provide(
             Layer.succeed(
-              VcsStatusBroadcaster.VcsAutomaticFetchInterval,
+              VcsAutomaticFetchInterval.VcsAutomaticFetchInterval,
               Effect.succeed(Duration.seconds(30)),
             ),
           ),
