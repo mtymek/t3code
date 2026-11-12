@@ -1,0 +1,258 @@
+name: Fork release
+
+# Publishes this fork's CLI archives as a GitHub release, so `t3 update <version>` can install
+# them with T3CODE_RELEASE_BASE_URL=https://github.com/<owner>/t3code/releases/download.
+# Upstream's release.yml only runs in pingdotgg/t3code; this reuses its per-platform build,
+# release-desktop.yml, without editing it. Desktop apps are built along the way but not published.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the leading v: the upstream tag plus -<repository owner>.N, such as 0.1.9-mtymek.1"
+        required: true
+        type: string
+      macos:
+        description: "Also build the macOS arm64 CLI archive (ad-hoc signed without CSC_LINK)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: fork-release
+  cancel-in-progress: false
+
+permissions:
+  # release-desktop.yml reads this run's artifact list.
+  actions: read
+  contents: write
+
+jobs:
+  meta:
+    name: Check version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      clerk_publishable_key: ${{ steps.connect.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ steps.connect.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ steps.connect.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ steps.connect.outputs.relay_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      # An -<owner>.N suffix keeps the build on T3's stable channel; nightly and preview shapes would
+      # collide with upstream's builds of the same name.
+      - id: version
+        name: Check version
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+          OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          suffix="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-${suffix}\.[0-9]+$ ]]; then
+            echo "Version must look like 0.1.9-$suffix.1, got '$VERSION'." >&2
+            exit 1
+          fi
+          if gh release view "v$VERSION" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release v$VERSION already exists." >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - id: connect
+        name: Resolve T3 Connect public config
+        shell: bash
+        run: |
+          set -euo pipefail
+          value() {
+            local found
+            found="$(sed -n "s/^$1=//p" .env.example | head -n 1)"
+            if [[ -z "$found" ]]; then
+              echo ".env.example is missing $1" >&2
+              exit 1
+            fi
+            printf '%s' "$found"
+          }
+          {
+            echo "clerk_publishable_key=$(value T3CODE_CLERK_PUBLISHABLE_KEY)"
+            echo "clerk_jwt_template=$(value T3CODE_CLERK_JWT_TEMPLATE)"
+            echo "clerk_cli_oauth_client_id=$(value T3CODE_CLERK_CLI_OAUTH_CLIENT_ID)"
+            echo "relay_url=$(value T3CODE_RELAY_URL)"
+          } >> "$GITHUB_OUTPUT"
+
+  build_bundle:
+    name: Build JS bundle
+    needs: [meta]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      T3CODE_CLERK_PUBLISHABLE_KEY: ${{ needs.meta.outputs.clerk_publishable_key }}
+      T3CODE_CLERK_JWT_TEMPLATE: ${{ needs.meta.outputs.clerk_jwt_template }}
+      T3CODE_CLERK_CLI_OAUTH_CLIENT_ID: ${{ needs.meta.outputs.clerk_cli_oauth_client_id }}
+      T3CODE_RELAY_URL: ${{ needs.meta.outputs.relay_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            /*
+            !/.repos/
+          sparse-checkout-cone-mode: false
+
+      - name: Setup dependencies
+        uses: ./.github/actions/setup-ci-deps
+        with:
+          install-args: --filter=t3... --filter=@t3tools/web... --filter=@t3tools/desktop... --filter=@t3tools/scripts...
+
+      # The CLI reports this version, and `t3 update` refuses an archive that reports another.
+      - name: Align package versions to release version
+        run: node scripts/update-release-package-versions.ts "${{ needs.meta.outputs.version }}"
+
+      - name: Build JS bundle
+        env:
+          T3CODE_TELEMETRY_CHANNEL: dev
+        run: vp run build:desktop:bundle
+
+      # Two paths under apps/ so the artifact root is apps/, as release-desktop.yml expects.
+      - name: Upload JS bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: js-bundle
+          path: |
+            apps/server/dist
+            apps/desktop/dist-electron
+          if-no-files-found: error
+          retention-days: 1
+
+  linux_x64:
+    name: Linux x64
+    needs: [meta, build_bundle]
+    uses: ./.github/workflows/release-desktop.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.meta.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: stable
+      relay_client_tracing: false
+      clerk_publishable_key: ${{ needs.meta.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ needs.meta.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ needs.meta.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ needs.meta.outputs.relay_url }}
+      label: Linux x64
+      runner: ubuntu-24.04
+      platform: linux
+      target: AppImage
+      arch: x64
+      rust_target: x86_64-unknown-linux-gnu
+      resource_key: linux-x64
+      cli_archive: true
+
+  # node-pty compiles from source on Linux arm64, so it builds on arm64 hardware.
+  linux_arm64:
+    name: Linux arm64
+    needs: [meta, build_bundle]
+    uses: ./.github/workflows/release-desktop.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.meta.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: stable
+      relay_client_tracing: false
+      clerk_publishable_key: ${{ needs.meta.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ needs.meta.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ needs.meta.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ needs.meta.outputs.relay_url }}
+      label: Linux arm64
+      runner: ubuntu-24.04-arm
+      platform: linux
+      target: AppImage
+      arch: arm64
+      rust_target: aarch64-unknown-linux-gnu
+      resource_key: linux-arm64
+      cli_archive: true
+
+  mac_arm64:
+    name: macOS arm64
+    if: inputs.macos
+    needs: [meta, build_bundle]
+    uses: ./.github/workflows/release-desktop.yml
+    secrets: inherit
+    with:
+      version: ${{ needs.meta.outputs.version }}
+      ref: ${{ github.sha }}
+      release_channel: stable
+      relay_client_tracing: false
+      clerk_publishable_key: ${{ needs.meta.outputs.clerk_publishable_key }}
+      clerk_jwt_template: ${{ needs.meta.outputs.clerk_jwt_template }}
+      clerk_cli_oauth_client_id: ${{ needs.meta.outputs.clerk_cli_oauth_client_id }}
+      relay_url: ${{ needs.meta.outputs.relay_url }}
+      label: macOS arm64
+      runner: macos-15
+      platform: mac
+      target: dmg
+      arch: arm64
+      rust_target: aarch64-apple-darwin
+      resource_key: darwin-arm64
+      cli_archive: true
+
+  release:
+    name: Publish GitHub release
+    needs: [meta, linux_x64, linux_arm64, mac_arm64]
+    if: ${{ !cancelled() && needs.linux_x64.result == 'success' && needs.linux_arm64.result == 'success' && needs.mac_arm64.result != 'failure' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Download CLI archives
+        uses: actions/download-artifact@v8
+        with:
+          pattern: cli-*
+          merge-multiple: true
+          path: release-assets
+
+      # `t3 update` verifies archives against this file, so it is written from the uploaded bytes.
+      - name: Write CLI archive checksums
+        shell: bash
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+          MACOS: ${{ inputs.macos }}
+        run: |
+          set -euo pipefail
+          cd release-assets
+          required=("t3-$VERSION-linux-x64.tar.gz" "t3-$VERSION-linux-arm64.tar.gz")
+          if [[ "$MACOS" == "true" ]]; then required+=("t3-$VERSION-darwin-arm64.tar.gz"); fi
+          for file in "${required[@]}"; do
+            [[ -f "$file" ]] || { echo "Missing release asset: $file" >&2; ls -la; exit 1; }
+          done
+          sha256sum t3-*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ needs.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.meta.outputs.tag }}
+          body: |
+            Built from `${{ github.sha }}` on `${{ github.ref_name }}`.
+
+            Install on a machine running T3 Code as a service:
+
+            ```sh
+            T3CODE_RELEASE_BASE_URL=https://github.com/${{ github.repository }}/releases/download t3 update ${{ needs.meta.outputs.version }}
+            ```
+          files: |
+            release-assets/*.tar.gz
+            release-assets/SHA256SUMS
+          token: ${{ github.token }}
