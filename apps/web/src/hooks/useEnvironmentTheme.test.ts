@@ -20,6 +20,7 @@ import {
   installCustomTheme,
   invalidateCustomThemes,
   publishedThemeDefinitions,
+  themeColorToHex,
 } from "../themePalette";
 
 const NIGHTFALL_THEME = {
@@ -66,6 +67,7 @@ describe("environment themes", () => {
     const theme = { name: "Shared", appearance: "dark" } as const;
     const definitions = publishedThemeDefinitions([
       NIGHTFALL_THEME,
+      { ...NIGHTFALL_THEME, id: "seeded-ansi", colors: { terminalAnsiBlue: "#e68e0d" } },
       {
         ...theme,
         id: "partial",
@@ -81,9 +83,13 @@ describe("environment themes", () => {
 
     expect(definitions.map((definition) => definition.id)).toEqual([
       "nightfall",
+      "seeded-ansi",
       "partial",
       "light-variant",
     ]);
+    const seededAnsi = definitions[1]!.colors;
+    expect(themeColorToHex(seededAnsi.terminalAnsiBlue)).toBe("#e68e0d");
+    expect(themeColorToHex(seededAnsi.terminalAnsiGreen)).toBe("#0dbc79");
   });
 
   // Routes without the old root sync component (/connect, prompt-link landings) never saw them.

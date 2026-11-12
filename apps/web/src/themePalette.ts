@@ -1603,6 +1603,22 @@ const APP_THEME_VARIABLES: Readonly<Record<ThemeColorRole, string>> = {
   terminalSelection: "--app-theme-terminal-selection-background",
   terminalScrollbar: "--app-theme-terminal-scrollbar",
   terminalScrollbarHover: "--app-theme-terminal-scrollbar-hover",
+  terminalAnsiBlack: "--app-theme-terminal-ansi-black",
+  terminalAnsiRed: "--app-theme-terminal-ansi-red",
+  terminalAnsiGreen: "--app-theme-terminal-ansi-green",
+  terminalAnsiYellow: "--app-theme-terminal-ansi-yellow",
+  terminalAnsiBlue: "--app-theme-terminal-ansi-blue",
+  terminalAnsiMagenta: "--app-theme-terminal-ansi-magenta",
+  terminalAnsiCyan: "--app-theme-terminal-ansi-cyan",
+  terminalAnsiWhite: "--app-theme-terminal-ansi-white",
+  terminalAnsiBrightBlack: "--app-theme-terminal-ansi-bright-black",
+  terminalAnsiBrightRed: "--app-theme-terminal-ansi-bright-red",
+  terminalAnsiBrightGreen: "--app-theme-terminal-ansi-bright-green",
+  terminalAnsiBrightYellow: "--app-theme-terminal-ansi-bright-yellow",
+  terminalAnsiBrightBlue: "--app-theme-terminal-ansi-bright-blue",
+  terminalAnsiBrightMagenta: "--app-theme-terminal-ansi-bright-magenta",
+  terminalAnsiBrightCyan: "--app-theme-terminal-ansi-bright-cyan",
+  terminalAnsiBrightWhite: "--app-theme-terminal-ansi-bright-white",
 };
 
 export function getThemeColorVariable(role: ThemeColorRole): string {

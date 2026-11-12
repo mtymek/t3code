@@ -362,6 +362,30 @@ export function parseVsCodeThemeFile(value: unknown): ThemeDefinition {
       derived.terminalSelection,
     terminalScrollbar:
       solidOver(terminal, "scrollbarSlider.background") ?? derived.terminalScrollbar,
+    terminalAnsiBlack: solidOver(terminal, "terminal.ansiBlack") ?? derived.terminalAnsiBlack,
+    terminalAnsiRed: solidOver(terminal, "terminal.ansiRed") ?? derived.terminalAnsiRed,
+    terminalAnsiGreen: solidOver(terminal, "terminal.ansiGreen") ?? derived.terminalAnsiGreen,
+    terminalAnsiYellow: solidOver(terminal, "terminal.ansiYellow") ?? derived.terminalAnsiYellow,
+    terminalAnsiBlue: solidOver(terminal, "terminal.ansiBlue") ?? derived.terminalAnsiBlue,
+    terminalAnsiMagenta: solidOver(terminal, "terminal.ansiMagenta") ?? derived.terminalAnsiMagenta,
+    terminalAnsiCyan: solidOver(terminal, "terminal.ansiCyan") ?? derived.terminalAnsiCyan,
+    terminalAnsiWhite: solidOver(terminal, "terminal.ansiWhite") ?? derived.terminalAnsiWhite,
+    terminalAnsiBrightBlack:
+      solidOver(terminal, "terminal.ansiBrightBlack") ?? derived.terminalAnsiBrightBlack,
+    terminalAnsiBrightRed:
+      solidOver(terminal, "terminal.ansiBrightRed") ?? derived.terminalAnsiBrightRed,
+    terminalAnsiBrightGreen:
+      solidOver(terminal, "terminal.ansiBrightGreen") ?? derived.terminalAnsiBrightGreen,
+    terminalAnsiBrightYellow:
+      solidOver(terminal, "terminal.ansiBrightYellow") ?? derived.terminalAnsiBrightYellow,
+    terminalAnsiBrightBlue:
+      solidOver(terminal, "terminal.ansiBrightBlue") ?? derived.terminalAnsiBrightBlue,
+    terminalAnsiBrightMagenta:
+      solidOver(terminal, "terminal.ansiBrightMagenta") ?? derived.terminalAnsiBrightMagenta,
+    terminalAnsiBrightCyan:
+      solidOver(terminal, "terminal.ansiBrightCyan") ?? derived.terminalAnsiBrightCyan,
+    terminalAnsiBrightWhite:
+      solidOver(terminal, "terminal.ansiBrightWhite") ?? derived.terminalAnsiBrightWhite,
   };
   overrides.accent = accentHex;
   overrides.focus = accentHex;

@@ -6,6 +6,10 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
 } from "lucide-react";
+import {
+  TERMINAL_ANSI_COLOR_ROLES,
+  type TerminalAnsiColorRole,
+} from "@t3tools/shared/themePalettes";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   applyThemeColorPreview,
@@ -48,6 +52,15 @@ import {
 } from "./themeInspector";
 
 const THEME_EDITOR_SIMPLE_ROLES: ReadonlyArray<ThemeColorRole> = ["canvas", "accent"];
+
+/** `terminalAnsiBrightBlack` is labelled "Bright black" inside the Terminal palette group. */
+function terminalAnsiSlotLabel(role: TerminalAnsiColorRole): string {
+  const slot = role
+    .slice("terminalAnsi".length)
+    .replace(/([A-Z])/g, " $1")
+    .trim();
+  return slot.charAt(0) + slot.slice(1).toLowerCase();
+}
 
 type ThemeEditorColorFamily = Readonly<{
   id: string;
@@ -215,6 +228,16 @@ const THEME_EDITOR_ROLE_GROUPS: ReadonlyArray<{
         ],
       },
     ],
+  },
+  {
+    id: "terminal-palette",
+    title: "Terminal palette",
+    families: TERMINAL_ANSI_COLOR_ROLES.map((role) => ({
+      id: role,
+      label: terminalAnsiSlotLabel(role),
+      role,
+      roles: [role],
+    })),
   },
   {
     id: "status",
