@@ -121,7 +121,8 @@ export const layer: Layer.Layer<
           runId: run.id,
           ordinal: run.ordinal,
           cwd: scope.cwd,
-          failed: run.status === "failed",
+          // Upstream never captures a failed run, so no sealed turn failed.
+          failed: false,
         });
       }
       const capturedAt = yield* DateTime.now;

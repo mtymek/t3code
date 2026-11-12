@@ -80,6 +80,7 @@ import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderS
 import * as OpenCodeRuntime from "@t3tools/provider-opencode/server/OpenCodeRuntime";
 import * as OpenCodeServerLedger from "@t3tools/provider-opencode/server/OpenCodeServerLedger";
 import * as ProviderThreadEnvironment from "./provider/ProviderThreadEnvironment.ts";
+import * as ManagedWorkspaces from "./workspace/ManagedWorkspaces.ts";
 import * as ProviderHostLive from "./provider/ProviderHostLive.ts";
 import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner.ts";
 import * as DocumentText from "./provider/DocumentText.ts";
@@ -804,11 +805,15 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   ReplayMarkers.layer,
   Layer.effectDiscard(ProjectSettingsOverrideSweep.sweep),
 ).pipe(
-  Layer.provideMerge(layerOrchestrationApplication),
-  // References read by request fibers too (revert admission, session opens),
-  // so they join the runtime context rather than one layer's construction.
-  Layer.provideMerge(Layer.merge(JjTurnHooks.layer, ProviderThreadEnvironment.layer)),
-  Layer.provideMerge(layerJj),
+  // The jj layers ride along with the orchestration application: pipe takes at most 20 steps.
+  Layer.provideMerge(
+    layerOrchestrationApplication.pipe(
+      // References read by request fibers too (revert admission, session opens),
+      // so they join the runtime context rather than one layer's construction.
+      Layer.provideMerge(Layer.merge(JjTurnHooks.layer, ProviderThreadEnvironment.layer)),
+      Layer.provideMerge(layerJj.pipe(Layer.provideMerge(ManagedWorkspaces.layer))),
+    ),
+  ),
   // One hub, which the feeders above and the workflow store inside the runtime publish to.
   Layer.provideMerge(MilestoneHub.layer),
   Layer.provideMerge(Layer.merge(layerTaskFolders, LayoutCommandApprovalWrites.layer)),

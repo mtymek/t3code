@@ -271,6 +271,8 @@ export const makeVcsDriverShape = Effect.fn("makeJjVcsDriverShape")(function* ()
       const marker = yield* requireRoot(operation, input.cwd);
       const commit = yield* snapshotWorkingCopy(jj, marker.root, operation);
       yield* recordCheckpoint(operation, input.cwd, marker.root, input.checkpointRef, commit);
+      // No range: summaries read the checkpoint refs instead.
+      return null;
     }),
 
     // After a snapshot `@` holds the folder, which matches its parents exactly when `@` is empty.
