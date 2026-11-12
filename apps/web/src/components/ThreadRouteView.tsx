@@ -54,9 +54,15 @@ function useOpenThreadFamily(threadRef: ScopedThreadRef | null, missing: boolean
 export function ThreadRouteView({
   target,
   background = false,
+  routeOwner = true,
+  inPane = false,
 }: {
   target: ThreadRouteTarget;
   background?: boolean;
+  /** False for a layout chat pane the route does not show; it never navigates or redirects. */
+  routeOwner?: boolean;
+  /** Fills a layout pane instead of the window's main inset. */
+  inPane?: boolean;
 }) {
   const navigate = useNavigate();
   const draftId = target.kind === "draft" ? target.draftId : null;
@@ -148,11 +154,19 @@ export function ThreadRouteView({
     if (renderState === "missing") {
       const { clearPendingFileDropsForThread } = useSidebarPendingFileDropStore.getState();
       clearPendingFileDropsForThread(target.threadRef);
-      if (environmentHasAnyThreads && !background) {
+      if (environmentHasAnyThreads && !background && routeOwner) {
         void navigate({ to: "/", replace: true });
       }
     }
-  }, [background, bootstrapComplete, environmentHasAnyThreads, navigate, renderState, target]);
+  }, [
+    background,
+    bootstrapComplete,
+    environmentHasAnyThreads,
+    navigate,
+    renderState,
+    routeOwner,
+    target,
+  ]);
 
   let view: React.ReactNode = null;
   let redirect: React.ReactNode = null;
@@ -224,13 +238,25 @@ export function ThreadRouteView({
     );
   }
 
+  const content = (
+    <>
+      <BackgroundThreadContext value={background || !routeOwner}>{view}</BackgroundThreadContext>
+      {background || !routeOwner ? null : redirect}
+    </>
+  );
+  if (inPane) {
+    return (
+      <div className="relative flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background">
+        {content}
+      </div>
+    );
+  }
   return (
     <SidebarInset
       className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh"
       inert={background}
     >
-      <BackgroundThreadContext value={background}>{view}</BackgroundThreadContext>
-      {background ? null : redirect}
+      {content}
     </SidebarInset>
   );
 }

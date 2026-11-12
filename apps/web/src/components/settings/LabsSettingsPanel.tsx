@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { managedCapabilityDenial } from "@t3tools/contracts";
 
 import { hasCloudPublicConfig } from "~/cloud/publicConfig";
+import { useWorkspaceLayoutStore } from "~/workspaceLayout/workspaceLayoutStore";
 import { useT3ConnectAuthPrompt } from "../clerk/useT3ConnectAuthPrompt";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
@@ -19,6 +20,7 @@ export function LabsSettingsPanel() {
     <SettingsPageContainer>
       <SettingsSection id="beta" title="Beta">
         <BoringSidebarRow />
+        <FlexibleLayoutRow />
         {/* Clerk is only mounted when this build has T3 Connect. */}
         {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
         <LinkedEnvironmentsRow />
@@ -48,6 +50,36 @@ function BoringSidebarRow() {
       {settings.boringSidebarEnabled ? (
         <div className="mt-2 mb-2 border-l-2 border-border/60 ps-3">
           <BoringSidebarMultilineRow />
+        </div>
+      ) : null}
+    </SettingsRow>
+  );
+}
+
+function FlexibleLayoutRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      {...searchableSetting("flexible-layout")}
+      description="Arrange each thread as splits and tabs of chats, terminals, diffs, files, browsers or pull requests. Panes follow the focused chat unless pinned. Each thread keeps its own layout."
+      control={
+        <Switch
+          checked={settings.flexibleLayoutEnabled}
+          onCheckedChange={(checked) => updateSettings({ flexibleLayoutEnabled: Boolean(checked) })}
+          aria-label="Flexible layout"
+        />
+      }
+    >
+      {settings.flexibleLayoutEnabled ? (
+        <div className="mt-2 mb-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => useWorkspaceLayoutStore.getState().reset()}
+          >
+            Reset all layouts
+          </Button>
         </div>
       ) : null}
     </SettingsRow>
