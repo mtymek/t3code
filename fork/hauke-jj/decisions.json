@@ -1,0 +1,1045 @@
+{
+  "02a2943b8530": {
+    "file": "packages/provider-core/package.json",
+    "take": true
+  },
+  "031b56c1c381": {
+    "file": "apps/mobile/src/features/threads/ThreadGitControls.tsx",
+    "take": true
+  },
+  "0416a187a4d8": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "05ea80f7b28e": {
+    "file": "apps/server/src/server.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -685,7 +729,13 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(\n   ReplayMarkers.layer,\n   Layer.effectDiscard(ProjectSettingsOverrideSweep.sweep),\n ).pipe(\n   Layer.provideMerge(layerOrchestrationApplication),\n+  // References read by request fibers too (revert admission, session opens),\n+  // so they join the runtime context rather than one layer's construction.\n+  Layer.provideMerge(Layer.merge(JjTurnHooks.layer, ProviderThreadEnvironment.layer)),\n+  Layer.provideMerge(layerJj),\n   Layer.provideMerge(RuntimeLayer.layerEventInfrastructure),\n   Layer.provideMerge(Layer.merge(ProjectStore.layer, ThreadSearch.layer)),\n   Layer.provideMerge(SecretResolver.layer),"
+  },
+  "063c56da3c0d": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "07e00f1b3666": {
+    "file": "apps/mobile/src/features/threads/NewTaskDraftScreen.tsx",
+    "take": false
+  },
+  "087b57171bd2": {
+    "file": "apps/server/src/vcs/VcsDriverRegistry.ts",
+    "take": true
+  },
+  "094137e2c928": {
+    "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.ts",
+    "take": true
+  },
+  "0a5b0efae07e": {
+    "file": "packages/provider-opencode/src/server/toolItems.ts",
+    "take": true
+  },
+  "0cd0310bb85a": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+    "take": true
+  },
+  "0dc421331b5d": {
+    "file": "apps/server/src/testUtils/gitConfig.setup.ts",
+    "take": true
+  },
+  "0e1b7235a9db": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.test.ts",
+    "take": false
+  },
+  "0e43b4bb1eaa": {
+    "file": "apps/web/src/components/chat/ThreadDetailsPanel.tsx",
+    "take": true
+  },
+  "0eed284d0ea6": {
+    "file": "apps/server/src/vcs/VcsDriverRegistry.test.ts",
+    "take": true
+  },
+  "1233f7456ad1": {
+    "file": "apps/server/src/git/GitWorkflowService.ts",
+    "take": true
+  },
+  "128eea58f881": {
+    "file": "apps/server/src/server.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -63,6 +66,8 @@ import * as ProviderLatestVersions from \"@t3tools/provider-core/server/ProviderL\n import * as McpProviderSessions from \"@t3tools/provider-core/server/McpProviderSessions\";\n import * as OpenCodeRuntime from \"@t3tools/provider-opencode/server/OpenCodeRuntime\";\n import * as OpenCodeServerLedger from \"@t3tools/provider-opencode/server/OpenCodeServerLedger\";\n+import * as ProviderThreadEnvironment from \"./provider/ProviderThreadEnvironment.ts\";\n import * as ProviderHostLive from \"./provider/ProviderHostLive.ts\";\n import * as DocumentText from \"./provider/DocumentText.ts\";\n import * as AcpRegistrySupport from \"@t3tools/provider-acp-registry/server/AcpRegistrySupport\";"
+  },
+  "155c65eda4cb": {
+    "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.ts",
+    "take": true
+  },
+  "159bb2b61cb0": {
+    "file": "apps/server/src/git/GitWorkflowService.ts",
+    "take": true
+  },
+  "163a20895a97": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.test.ts",
+    "take": false
+  },
+  "16760c2fc22f": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "16ad641a7d15": {
+    "file": "apps/web/src/components/chat/useComposerSend.ts",
+    "take": false
+  },
+  "1a40312d5a59": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "1a407bbb4c8e": {
+    "file": "packages/provider-cursor/src/server/adapter.ts",
+    "take": true
+  },
+  "1a994d0fd70f": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -1403,31 +1425,43 @@ const CODEX_T3_MCP_TOOL_TIMEOUT_SEC = 65 * 60;\n const CODEX_T3_DIRECT_MCP_SERVER = \"t3-code-direct\";\n const CODEX_DIRECT_ONLY_T3_TOOL = \"t3_thread_wait\";\n \n function codexThreadRuntimeParams(input: {\n   readonly threadId: ThreadId | null;\n   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;\n   readonly modelSelection?: { readonly model: string };\n   readonly runtimePolicy?: ProviderAdapter.ProviderAdapterV2RuntimePolicy;\n+  readonly threadEnvironment?: Readonly<Record<string, string>>;\n }): {\n   readonly cwd?: string;\n   readonly model?: string;\n   readonly config: Readonly<Record<string, Schema.Json>>;\n } {\n   const { mcpSession } = input;\n   const t3Server =\n     mcpSession === undefined\n       ? undefined\n       : {\n           url: mcpSession.endpoint,\n           tool_timeout_sec: CODEX_T3_MCP_TOOL_TIMEOUT_SEC,\n           http_headers: { Authorization: mcpSession.authorizationHeader },\n         };\n   return {\n     ...(input.runtimePolicy?.cwd == null ? {} : { cwd: input.runtimePolicy.cwd }),\n     ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),\n     config: {\n       ...CODEX_THREAD_CONFIG,\n+      // The app-server process may serve several threads, so the thread's\n+      // environment goes to its shell commands through config, not the process.\n+      ...Object.fromEntries(\n+        Object.entries(input.threadEnvironment ?? {}).map(([name, value]) => [\n+          `shell_environment_policy.set.${name}`,\n+          value,\n+        ]),\n+      ),\n       // One app-server serves many threads, so the id goes in per-thread shell config, not its env.\n       ...(input.threadId === null\n         ? {}\n         : { [`shell_environment_policy.set.${PortScanner.AGENT_THREAD_ENV}`]: input.threadId }),"
+  },
+  "1b9c3118f9be": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.test.ts",
+    "take": false
+  },
+  "1cf59defb74e": {
+    "file": "apps/web/src/components/settings/ProjectDefaultsSettings.tsx",
+    "take": true
+  },
+  "20cea7268031": {
+    "file": "apps/server/src/vcs/RepositoryMarker.test.ts",
+    "take": true
+  },
+  "21f064d72b9d": {
+    "file": "packages/provider-opencode/src/server/toolItems.test.ts",
+    "take": true
+  },
+  "24296e70a81e": {
+    "file": "apps/server/src/provider/AgentContextBudget.test.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -48,12 +53,17 @@ import budget from \"./agentContextBudget.json\" with { type: \"json\" };\n \n // Registration only stores tool definitions, so the handlers' services are never called.\n const toolHandlerServices = Layer.mergeAll(\n   Layer.mock(AssetSigner)({}),\n   Layer.mock(DeviceService)({}),\n   Layer.mock(DocumentText)({}),\n   Layer.mock(GitVcsDriver)({}),\n   Layer.mock(GitWorkflowService)({}),\n+  Layer.mock(JjStatusReader)({}),\n+  Layer.mock(JjThreadWork)({}),\n+  Layer.mock(JjWorkflow)({}),\n   Layer.mock(ManagedProjectFolders)({ namedProjectsRoot: \"\" }),\n+  Layer.mock(ManagedWorkspaces)({}),\n   Layer.mock(McpProviderSessions)({}),\n   Layer.mock(OrchestratorV2)({}),\n   Layer.mock(PeerForwarding)({}),"
+  },
+  "24fd531ac691": {
+    "file": "apps/server/src/git/GitWorkflowService.ts",
+    "take": true
+  },
+  "2548ad34582f": {
+    "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.test.ts",
+    "take": true
+  },
+  "254f40e32891": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "257d3eea19e1": {
+    "file": "apps/server/src/mcp/McpHttpServer.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -1257,9 +1286,11 @@ export const layerTools = Layer.mergeAll(\n   layerEnvironmentToolkit,\n   layerPreviewControlsRegistration,\n   layerWorktreeToolkitRegistration,\n+  layerJjToolkit,\n   layerPullRequestsToolkit,\n   layerDeviceToolkit,\n   layerHtmlToolkit,\n );\n \n export const layer = layerMcpTransport(layerTools);"
+  },
+  "26054049694b": {
+    "file": "docs/user/source-control.md",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -355,3 +356,39 @@ the scope and merge strategy. GitHub rebases the remaining stack after merging.\n It can rewrite history and restart checks. If a layer fails, earlier updates remain; resolve that\n layer before retrying. GitHub may require manual conflict resolution after a lower layer is amended,\n even when its changes look independent. Stack actions require an environment that supports them.\n+\n+## Jujutsu (jj)\n+\n+T3 Code works with [Jujutsu](https://jj-vcs.github.io/jj/) repositories when jj 0.46 or newer is\n+installed on the server. A repository with a `.jj` folder is treated as jj, including one that also\n+has a `.git` folder. Colocated repositories, the default for `jj git init` and `jj git clone`, keep\n+every Git feature as well.\n+\n+Every turn ends in a change of its own. When the agent commits its work with jj, T3 Code leaves it\n+alone. Otherwise T3 Code commits the files the turn changed and has your commit writer describe them,\n+so you can review, squash, or push each turn separately. Turns that fail are kept the same way,\n+marked in the description.\n+\n+Commits carry `T3-Thread` and `T3-Turn` trailers that link them to the thread and turn that made\n+them, including commits the agent makes itself. Turn this off per project in\n+**Settings → Source Control → Add T3 trailers to jj commits**. To keep the trailers out of a remote,\n+list it under **Strip T3 trailers when pushing to**; this applies to pushes T3 Code makes.\n+\n+Open **Version Control** in the thread details to see the stack from `trunk()` to your working copy.\n+From there you can describe, commit, squash, abandon, or edit a change, set bookmarks, fetch, rebase\n+onto trunk, push, open a pull request, and undo the last operation T3 Code ran. A change without a\n+bookmark is pushed as `t3code/<name>`. Agents can do the same through T3 Code's tools.\n+\n+Several threads can work in one checkout. Each turn keeps only the files it changed, using the\n+edits the agent reported. A file no turn can claim stays in the working copy and is listed in the\n+stack, where you can assign it to the thread. Reverting a thread with **Revert files too** removes\n+only that thread's changes, and waits until the other threads' turns in that checkout finish.\n+Changes T3 Code cannot attribute to the thread, such as a branch the agent merged in, stay.\n+**Undo last T3 operation** in the stack brings the files back; the conversation stays rewound.\n+\n+Forking a thread in a jj repository gives the fork a workspace of its own, starting below the\n+thread's working copy. If the working copy holds uncommitted files at that moment, the fork shares\n+the original thread's checkout instead. Merging the fork back moves its changes into the original thread's stack,\n+below its working copy, as long as no turn is running there. **Work in other repositories** in the stack lists this thread's changes in\n+every repository on the environment."
+  },
+  "26478f3873c3": {
+    "file": "apps/mobile/src/Stack.tsx",
+    "take": true
+  },
+  "2aa7c766f954": {
+    "file": "apps/server/src/testUtils/gitConfig.setup.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -8,9 +13,21 @@ const entries: ReadonlyArray<readonly [key: string, value: string]> = [\n   [\"init.defaultBranch\", \"main\"],\n ];\n \n const existing = Number(process.env.GIT_CONFIG_COUNT ?? \"0\");\n process.env.GIT_CONFIG_COUNT = String(existing + entries.length);\n entries.forEach(([key, value], index) => {\n   process.env[`GIT_CONFIG_KEY_${existing + index}`] = key;\n   process.env[`GIT_CONFIG_VALUE_${existing + index}`] = value;\n });\n+\n+// jj gets the same treatment: a fixed identity and no signing, instead of the\n+// developer's config, so jj fixtures never wait on an SSH agent.\n+if (process.env.T3_TEST_JJ_CONFIG === undefined) {\n+  const jjConfig = NodePath.join(NodeOS.tmpdir(), `t3-test-jj-${process.pid}.toml`);\n+  NodeFS.writeFileSync(\n+    jjConfig,\n+    '[user]\\nname = \"Test\"\\nemail = \"test@test.com\"\\n[signing]\\nbehavior = \"drop\"\\n[ui]\\npaginate = \"never\"\\n',\n+  );\n+  process.env.T3_TEST_JJ_CONFIG = jjConfig;\n+  process.env.JJ_CONFIG = jjConfig;\n+}"
+  },
+  "2e3e85d2596b": {
+    "file": "packages/provider-core/package.json",
+    "take": false
+  },
+  "2f2f2d1605ae": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "2fa61acbcafe": {
+    "file": "apps/server/src/mcp/toolkits/project/tools.ts",
+    "take": false
+  },
+  "31d8ea691e2e": {
+    "file": "apps/server/src/git/GitWorkflowService.test.ts",
+    "take": true
+  },
+  "31ee10ee72f8": {
+    "file": "apps/server/src/vcs/VcsDriverRegistry.ts",
+    "take": true
+  },
+  "322d0ac1b844": {
+    "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.ts",
+    "take": true
+  },
+  "3275f5ff46c0": {
+    "file": "packages/contracts/src/rpc.ts",
+    "take": true
+  },
+  "32bc6e89963e": {
+    "file": "apps/server/src/review/ReviewService.ts",
+    "take": true
+  },
+  "342c90469fae": {
+    "file": "apps/server/src/provider/AgentContextBudget.test.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -41,6 +44,8 @@ import { ServerSettingsService } from \"../serverSettings.ts\";\n import { SourceControlRepositoryService } from \"../sourceControl/SourceControlRepositoryService.ts\";\n import { GitVcsDriver } from \"../vcs/GitVcsDriver.ts\";\n import { VcsStatusBroadcaster } from \"../vcs/VcsStatusBroadcaster.ts\";\n+import { ManagedWorkspaces } from \"../workspace/ManagedWorkspaces.ts\";\n import { buildCodexAdditionalContext } from \"./CodexDeveloperInstructions.ts\";\n import { DocumentText } from \"./DocumentText.ts\";\n import { ProviderRegistry } from \"./ProviderRegistry.ts\";"
+  },
+  "3500d41fa8b0": {
+    "file": "apps/server/src/ws.test.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -842,6 +865,12 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(\n   Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),\n   Layer.mock(ThreadManagement.ThreadManagementService)({}),\n   Layer.mock(ThreadSearch.ThreadSearch)({}),\n+  Layer.mock(JjThreadWork.JjThreadWork)({}),\n+  Layer.mock(JjTurnService.JjTurnService)({}),\n+  Layer.mock(JjWorkflow.JjWorkflow)({}),\n+  Layer.mock(ManagedWorkspaces.ManagedWorkspaces)({}),\n   Layer.mock(UsageService.UsageService)({}),\n   Layer.mock(VcsProvisioningService.VcsProvisioningService)({}),\n   Layer.mock(VcsStatusBroadcaster.VcsStatusBroadcaster)({}),"
+  },
+  "35e57fbdd872": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "38f54f2b581d": {
+    "file": "packages/provider-opencode/src/server/adapter.ts",
+    "take": true
+  },
+  "3903cddd9ddf": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+    "take": true
+  },
+  "3947ff7ead14": {
+    "file": "packages/contracts/src/index.ts",
+    "take": true
+  },
+  "395b483ccfaf": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "3acf27aa61a2": {
+    "file": "apps/server/src/vcs/VcsDriverRegistry.ts",
+    "take": true
+  },
+  "3b59755aca6e": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+    "take": true
+  },
+  "3bb36d1043b6": {
+    "file": "apps/server/src/git/GitManager.test.ts",
+    "take": true
+  },
+  "3c9f6e2b10ea": {
+    "file": "packages/provider-acp/src/server/adapter.ts",
+    "take": true
+  },
+  "3f497e19e7ed": {
+    "file": "apps/server/src/sourceControl/SourceControlProviderRegistry.test.ts",
+    "take": true
+  },
+  "3f819b0cd575": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -1754,13 +1804,46 @@ export const makeCodexAdapterV2 = Effect.fn(\"makeCodexAdapterV2\")(function* (\n                     }),\n                 ),\n               );\n+        const resolveThreadRuntimeParams = Effect.fn(\"CodexAdapterV2.resolveThreadRuntimeParams\")(\n+          function* (\n+            params: Omit<\n+              Parameters<typeof codexThreadRuntimeParams>[0],\n+              \"mcpSession\" | \"threadEnvironment\"\n+            >,\n+          ) {\n+            return codexThreadRuntimeParams({\n+              ...params,\n+              mcpSession: yield* readMcpSession(params.threadId),\n+              threadEnvironment:\n+                params.threadId === null\n+                  ? {}\n+                  : yield* (yield* ProviderThreadEnvironment).forThread(params.threadId),\n+            });\n+          },\n+        );\n         const client = yield* clientFactory.open({\n           instanceId: adapterOptions.instanceId,\n           threadId: input.threadId,"
+  },
+  "428d49d960b8": {
+    "file": "apps/server/src/mcp/McpHttpServer.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -1181,6 +1206,10 @@ const layerWorktreeToolkitRegistration = toolkitRegistration(\n   WorktreeHandlers.layer,\n ).pipe(Layer.provide(WorktreeMcpService.layer));\n \n+const layerJjToolkit = toolkitRegistration(JjToolkit, JjHandlers.layer);\n+\n const layerPreviewControlsRegistration = toolkitRegistration(\n   PreviewControlsToolkit,\n   PreviewControlsHandlers.layer,"
+  },
+  "4315271d74b9": {
+    "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+    "take": true
+  },
+  "43a1724c7f20": {
+    "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+    "take": true
+  },
+  "441bd15502e0": {
+    "file": "apps/mobile/src/features/threads/NewTaskDraftScreen.tsx",
+    "take": false
+  },
+  "470cb7601cf0": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "485758d6bcc6": {
+    "file": "packages/provider-opencode/src/server/toolItems.ts",
+    "take": true
+  },
+  "48bbde9614eb": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -216,12 +216,20 @@ import {\n } from \"@t3tools/provider-core/server/mcpToolPresentation\";\n import * as McpProviderSession from \"@t3tools/provider-core/server/mcpSession\";\n import * as McpProviderSessions from \"@t3tools/provider-core/server/McpProviderSessions\";\n import * as IdAllocator from \"@t3tools/provider-core/server/IdAllocator\";\n import {\n   makeProviderFailure,\n   makeProviderRetryTurnItem,\n } from \"@t3tools/provider-core/server/failure\";\n import { turnScopedSelectionTransition } from \"@t3tools/provider-core/server/selectionTransition\";\n+import { ProviderThreadEnvironment } from \"@t3tools/provider-core/server/threadEnvironment\";\n import { providerMessageTextWithAttachmentPaths } from \"@t3tools/provider-core/server/attachmentPrompt\";\n import * as ProviderAdapter from \"@t3tools/provider-core/server/ProviderAdapter\";\n import {"
+  },
+  "49265a11916b": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.test.ts",
+    "take": false
+  },
+  "4a3c7cdf7263": {
+    "file": "packages/contracts/src/settings.ts",
+    "take": true
+  },
+  "4a3c7cdf7263-2": {
+    "file": "packages/contracts/src/settings.ts",
+    "take": true
+  },
+  "4bd79a86f9c5": {
+    "file": "apps/server/src/ws.test.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -771,6 +778,21 @@ it.effect(\"shell snapshots omit idle children and older settled threads only on\n );\n \n // Build the production RPC layer; unrelated capabilities fail if this test calls them.\n+// `layerWsRpc` serves upstream's RPCs; the fork's come from their own handler layer.\n+const UpstreamWsRpcGroup = WsRpcGroup.omit(\n+  \"vcs.jj.runAction\",\n+  \"vcs.jj.assignPaths\",\n+  \"vcs.jj.threadWork\",\n+);\n+\n const layerUnusedConfigRpcServices = Layer.mergeAll(\n   Layer.mock(DocumentText.DocumentText)({}),\n   Layer.mock(ServerSecretStore.ServerSecretStore)({}),"
+  },
+  "4d053f06493b": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "4e020102b009": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "4fa7ea64fc8d": {
+    "file": "apps/web/src/components/ChatView.tsx",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -2212,16 +2335,18 @@ export default function ChatView(props: ChatViewProps) {\n       : false;\n   const sendEnvMode = resolveSendEnvMode({\n     requestedEnvMode: envMode,\n     isGitRepo,\n   });\n-  const localCheckoutBranchMismatch = isServerThread\n-    ? resolveLocalCheckoutBranchMismatch({\n-        effectiveEnvMode: envMode,\n-        activeWorktreePath,\n-        activeThreadBranch,\n-        currentGitBranch: gitStatusQuery.data?.refName ?? null,\n-      })\n-    : null;\n+  // jj keeps Git's HEAD detached, so a missing branch there is normal.\n+  const localCheckoutBranchMismatch =\n+    isServerThread && vcsKind !== \"jj\"\n+      ? resolveLocalCheckoutBranchMismatch({\n+          effectiveEnvMode: envMode,\n+          activeWorktreePath,\n+          activeThreadBranch,\n+          currentGitBranch: gitStatusQuery.data?.refName ?? null,\n+        })\n+      : null;\n   const publishComposerOverlayHeight = (height: number) => {\n     const nextHeight = Math.ceil(height);\n     if (nextHeight <= 0) return;"
+  },
+  "4fbde66ecb00": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "4ff4d9f3ab41": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.test.ts",
+    "take": false
+  },
+  "51f9cf492d0c": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "51fed594cd4c": {
+    "file": "apps/web/src/components/chat/ThreadDetailsPanel.tsx",
+    "take": true
+  },
+  "5215e28dda07": {
+    "file": "apps/web/src/components/ChatView.tsx",
+    "take": true
+  },
+  "53481b52733e": {
+    "file": "packages/contracts/src/rpc.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -2064,6 +2184,14 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori\n   { error: EnvironmentAuthorizationError },\n ) {}\n \n+/** The fork's RPCs. The server serves them from a handler layer of their own (apps/server/src/ws.ts). */\n+export const ForkWsRpcGroup = RpcGroup.make(\n+  WsVcsJjRunActionRpc,\n+  WsVcsJjAssignPathsRpc,\n+  WsVcsJjThreadWorkRpc,\n+).middleware(RpcScopeAuthorization);\n+\n export const WsRpcGroup = RpcGroup.make(\n   WsGuestShareCreateRpc,\n   WsServerProbeRpc,"
+  },
+  "5383b17facfd": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true
+  },
+  "55b01ce2d746": {
+    "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+    "take": true
+  },
+  "5611104f6d72": {
+    "file": "apps/server/src/orchestration-v2/CheckpointRestoreSafety.ts",
+    "take": true
+  },
+  "570bbde1a4e6": {
+    "file": "apps/mobile/src/features/threads/ThreadGitControls.tsx",
+    "take": true
+  },
+  "5731eb7fe746": {
+    "file": "packages/contracts/src/settings.ts",
+    "take": true
+  },
+  "57ed51e4e831": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.test.ts",
+    "take": true
+  },
+  "5918dd387463": {
+    "file": "apps/server/src/git/GitWorkflowService.test.ts",
+    "take": true,
+    "note": "imports for the jj test; blame credits an upstream commit"
+  },
+  "59b1e66d4e1d": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "5dbab532c41d": {
+    "file": "apps/web/src/components/settings/settingsSearch.ts",
+    "take": true
+  },
+  "5dfb6b1e4b4a": {
+    "file": "apps/mobile/src/lib/projectThreadStartTurn.ts",
+    "take": false
+  },
+  "5e54089b79d5": {
+    "file": "apps/server/src/vcs/VcsDriverRegistry.test.ts",
+    "take": true
+  },
+  "5fb2ee65a83b": {
+    "file": "apps/mobile/src/features/threads/NewTaskDraftScreen.tsx",
+    "take": false
+  },
+  "6094d6c1761e": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.test.ts",
+    "take": false
+  },
+  "618d33a9ee9c": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "61c01d4c011f": {
+    "file": "packages/provider-pi/src/server/adapter.ts",
+    "take": true
+  },
+  "61e3a4345e9e": {
+    "file": "apps/web/src/components/chat/ThreadDetailsPanel.tsx",
+    "take": true
+  },
+  "6289a097c854": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": true
+  },
+  "65727ae5e1c6": {
+    "file": "apps/server/src/orchestration-v2/CheckpointService.ts",
+    "take": true
+  },
+  "6749e173a457": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.test.ts",
+    "take": false
+  },
+  "67674cadc64b": {
+    "file": "apps/web/src/components/chat/useComposerSend.ts",
+    "take": false
+  },
+  "67f86d39c704": {
+    "file": "packages/contracts/src/git.ts",
+    "take": true
+  },
+  "68529be296f4": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": true
+  },
+  "6860bdb552c3": {
+    "file": "docs/user/composer.md",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -174,11 +200,13 @@ On web and desktop, choose **Edit from here** beneath a sent message to rewind\n the conversation to before that message. Choose **Revert and keep changes** to\n leave workspace files as they are, or **Revert files too** to put the workspace back\n to its checkpoint from before that message. That also undoes edits you made yourself.\n-File restore is only offered for threads running in a worktree, and it is\n+In Git projects, file restore is only offered for threads running in a worktree, and it is\n refused when another thread or agent session also uses that directory, a folder\n inside it, or a folder that contains it, since\n restoring would erase their changes. A thread that works in the project directory\n-rewinds the conversation only. The selected prompt and its attachments return to the composer for editing and\n+rewinds the conversation only. In jj repositories, restoring files removes only that thread's changes, so it works in\n+a shared checkout too; see [Jujutsu (jj)](source-control.md#jujutsu-jj). The selected prompt and its attachments return to the composer for editing and\n resending. Any unsent draft stays above the restored prompt.\n \n This removes the selected message and later conversation from the active thread"
+  },
+  "6920809421de": {
+    "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.test.ts",
+    "take": true
+  },
+  "6aab4cb5a08f": {
+    "file": "apps/web/src/components/chat/ThreadDetailsPanel.tsx",
+    "take": true
+  },
+  "6b0012382280": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "6c857deb98c4": {
+    "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.ts",
+    "take": true
+  },
+  "6fa6f359e7a0": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true
+  },
+  "7120157fef0c": {
+    "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+    "take": true
+  },
+  "71a14bd56be2": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": true
+  },
+  "72b8b25ad4c6": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": true
+  },
+  "739678dd8de4": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "739678dd8de4-2": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "755be6ce6d33": {
+    "file": "packages/contracts/src/git.ts",
+    "take": true
+  },
+  "760de96eb7ef": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "7721946437ea": {
+    "file": "apps/web/src/components/settings/ProjectDefaultsSettings.tsx",
+    "take": true
+  },
+  "779500c95d57": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "78e7ef36323d": {
+    "file": "apps/web/src/components/chat/ThreadDetailsPanel.tsx",
+    "take": true
+  },
+  "790fe75e22be": {
+    "file": "apps/server/src/server.ts",
+    "take": true
+  },
+  "80014eae6b9f": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true
+  },
+  "801b0a2731a4": {
+    "file": "apps/server/src/orchestration-v2/CheckpointService.ts",
+    "take": true
+  },
+  "8061411ce293": {
+    "file": "apps/server/src/observability/RpcInstrumentation.ts",
+    "take": false
+  },
+  "808b9216a884": {
+    "file": "apps/server/src/review/ReviewService.ts",
+    "take": true
+  },
+  "8297736483c9": {
+    "file": "apps/web/src/components/chat/ThreadDetailsPanel.tsx",
+    "take": true
+  },
+  "831e66611207": {
+    "file": "apps/mobile/src/features/threads/ThreadRouteScreen.tsx",
+    "take": true
+  },
+  "83724c454c89": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "846b1c064ac2": {
+    "file": "apps/mobile/src/features/threads/ThreadGitControls.tsx",
+    "take": true
+  },
+  "84810d11f923": {
+    "file": "apps/server/src/observability/RpcInstrumentation.ts",
+    "take": false
+  },
+  "862f1827bec6": {
+    "file": "packages/shared/src/t3McpToolPresentation.ts",
+    "take": true
+  },
+  "876d60899623": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "8a2076866f74": {
+    "file": "packages/provider-core/src/server/orchestrationInstructions.ts",
+    "take": false
+  },
+  "8a3c7d1c6f09": {
+    "file": "apps/mobile/src/state/thread-outbox-model.ts",
+    "take": false
+  },
+  "8a9531536ed9": {
+    "file": "packages/provider-opencode/src/server/toolItems.test.ts",
+    "take": true
+  },
+  "8ac711836ea3": {
+    "file": "packages/provider-opencode/src/server/toolItems.ts",
+    "take": true
+  },
+  "8bd0cbfe9c03": {
+    "file": "packages/contracts/src/orchestrationV2.ts",
+    "take": true
+  },
+  "8bd0cbfe9c03-2": {
+    "file": "packages/contracts/src/orchestrationV2.ts",
+    "take": true
+  },
+  "8c14a1805817": {
+    "file": "apps/server/src/ws.test.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -144,6 +145,12 @@ import * as SqlitePersistence from \"./persistence/Sqlite.ts\";\n import * as ExternalLauncher from \"./process/externalLauncher.ts\";\n import * as ProjectEnrichment from \"./project/ProjectEnrichmentService.ts\";\n import * as ProjectService from \"./project/ProjectService.ts\";\n+import * as JjThreadWork from \"./jj/JjThreadWork.ts\";\n+import * as JjTurnService from \"./jj/JjTurnService.ts\";\n+import * as JjWorkflow from \"./jj/JjWorkflow.ts\";\n+import * as ManagedWorkspaces from \"./workspace/ManagedWorkspaces.ts\";\n import {\n   layerWsRpc,\n   resolveOpenDiscoveryForConfig,"
+  },
+  "8d3742ece4a9": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+    "take": true
+  },
+  "8d77a171cc1b": {
+    "file": "apps/server/src/orchestration-v2/RunExecutionService.ts",
+    "take": true
+  },
+  "8f9b671fec2e": {
+    "file": "packages/client-runtime/src/state/vcs.ts",
+    "take": true
+  },
+  "903a60dea499": {
+    "file": "apps/server/src/checkpointing/CheckpointStore.ts",
+    "take": true
+  },
+  "910608956260": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true
+  },
+  "917dc5474148": {
+    "file": "apps/server/src/server.ts",
+    "take": true
+  },
+  "941bf333eff1": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "957d9bb91cd2": {
+    "file": "packages/provider-opencode/src/server/adapter.ts",
+    "take": true
+  },
+  "95bba0a1c8a4": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "96de20dde0df": {
+    "file": "apps/mobile/src/features/threads/NewTaskDraftScreen.tsx",
+    "take": false
+  },
+  "96e20dcd9f0b": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.test.ts",
+    "take": false
+  },
+  "9703769e0bfa": {
+    "file": "apps/server/src/observability/RpcInstrumentation.ts",
+    "take": true
+  },
+  "9753ab1d5f56": {
+    "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.test.ts",
+    "take": true
+  },
+  "984f06394dd7": {
+    "file": "apps/mobile/src/features/threads/ThreadGitControls.tsx",
+    "take": true
+  },
+  "98a959007df3": {
+    "file": "apps/server/src/git/GitWorkflowService.test.ts",
+    "take": true
+  },
+  "9db9522dbdf3": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "9db9522dbdf3-2": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "9db9522dbdf3-3": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "9e714c0ab43b": {
+    "file": "packages/contracts/src/rpc.ts",
+    "take": true
+  },
+  "9f5d93792eeb": {
+    "file": "packages/provider-pi/src/server/adapter.ts",
+    "take": true
+  },
+  "a0f7d98528c1": {
+    "file": "apps/server/src/ws.ts",
+    "take": true
+  },
+  "a1453e27993c": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "a1afa8116533": {
+    "file": "apps/web/src/components/ChatView.tsx",
+    "take": true
+  },
+  "a1e6bddd7f59": {
+    "file": "apps/server/src/orchestration-v2/RunExecutionService.ts",
+    "take": true
+  },
+  "a2a5b81f1013": {
+    "file": "apps/server/src/git/GitManager.ts",
+    "take": true
+  },
+  "a3bfcb47bcbd": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "a3d6fb11669a": {
+    "file": "apps/server/src/git/GitManager.ts",
+    "take": true
+  },
+  "a4e4d2bcef45": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true
+  },
+  "a51e3503ace3": {
+    "file": "packages/contracts/src/settings.ts",
+    "take": true
+  },
+  "a5a37e5ae7fc": {
+    "file": "apps/server/src/provider/AgentContextBudget.test.ts",
+    "take": false
+  },
+  "a5bedb71e511": {
+    "file": "apps/server/src/vcs/VcsDriverRegistry.ts",
+    "take": true
+  },
+  "a79c977023dc": {
+    "file": "apps/server/src/git/GitWorkflowService.ts",
+    "take": true
+  },
+  "a878151dd00b": {
+    "file": "apps/server/src/vcs/VcsDriverRegistry.ts",
+    "take": true
+  },
+  "a9325c3ca70e": {
+    "file": "apps/web/src/components/BranchToolbar.tsx",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -40,7 +45,9 @@ import { BranchToolbarEnvironmentSelector } from \"./BranchToolbarEnvironmentSele\n import { openAddProjectToMachine } from \"./AddProjectToMachineDialog\";\n import { type AddProjectTarget, useAddProjectTargets } from \"../hooks/useAddProjectTargets\";\n import { BranchToolbarEnvModeSelector } from \"./BranchToolbarEnvModeSelector\";\n+import { JjStackControl } from \"./JjStackControl\";\n import { PreviousWorktreeItemContent } from \"./PreviousWorktreeItemContent\";\n import { ThreadDetailsControl } from \"./chat/ThreadDetailsControl\";\n import {\n   THREAD_DETAILS_PANEL_ICON_CLASS,"
+  },
+  "a9c543a7d90b": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true
+  },
+  "a9c864e6bbab": {
+    "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -191,7 +196,9 @@ import {\n   isForkableSourceRunStatus,\n   ThreadForkServiceV2,\n } from \"./ThreadForkService.ts\";\n+import { VcsTurnHooks } from \"./VcsTurnHooks.ts\";\n import { planThreadDeletion } from \"./ThreadDeletion.ts\";\n import type * as ProviderAdapter from \"@t3tools/provider-core/server/ProviderAdapter\";\n import * as ServerSettings from \"../serverSettings.ts\";\n "
+  },
+  "aafee31e074c": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true
+  },
+  "ab6a809ff995": {
+    "file": "apps/web/src/components/BranchToolbar.tsx",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -101,6 +108,10 @@ interface BranchToolbarProps {\n   trailing?: ReactNode;\n   availableEnvironments?: readonly EnvironmentOption[];\n   onEnvironmentChange?: (environmentId: EnvironmentId) => void;\n+  /** A jj checkout shows its stack in the composer strip instead of a branch. */\n+  jjCwd?: string | null;\n }\n \n function showWorkspaceContextMenu(event: ReactMouseEvent, workspacePath: string) {"
+  },
+  "abb8f8539ae0": {
+    "file": "apps/server/src/auth/RpcAuthorization.ts",
+    "take": true
+  },
+  "ac07a0a05888": {
+    "file": "apps/server/src/orchestration-v2/RunExecutionService.ts",
+    "take": true
+  },
+  "ac29690c8432": {
+    "file": "apps/server/src/ws.test.ts",
+    "take": true
+  },
+  "ae17a6d9d680": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+    "take": true
+  },
+  "ae26a606dd63": {
+    "file": "packages/shared/src/git.ts",
+    "take": true
+  },
+  "ae61474fd13f": {
+    "file": "apps/server/src/ws.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -100,8 +101,10 @@ import {\n   ThreadId,\n   type TerminalMetadataStreamEvent,\n   type PullRequestRef,\n   WS_METHODS,\n   WsRpcGroup,\n+  ForkWsRpcGroup,\n } from \"@t3tools/contracts\";\n import {\n   HttpRouter,"
+  },
+  "af1b3e94bd5b": {
+    "file": "packages/provider-pi/src/server/adapter.ts",
+    "take": true
+  },
+  "af36ff7006fe": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+    "take": true
+  },
+  "b034ee2de990": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+    "take": true
+  },
+  "b26be1c4a88d": {
+    "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+    "take": true
+  },
+  "b26edc4b3e70": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": true
+  },
+  "b65c2aa83664": {
+    "file": "apps/server/src/auth/RpcAuthorization.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -23,7 +23,9 @@ import {\n   AuthRelayWriteScope,\n   AuthTerminalOperateScope,\n   ORCHESTRATION_V2_WS_METHODS,\n+  AuthSourceControlWriteScope,\n   AuthTerminalReadScope,\n   type AuthEnvironmentScope,\n   EnvironmentAuthorizationError,\n   RpcScopeAuthorization,"
+  },
+  "ba7976a04a4a": {
+    "file": "packages/provider-acp/src/server/adapter.ts",
+    "take": true
+  },
+  "bad4eebe9020": {
+    "file": "apps/mobile/src/features/threads/ThreadGitControls.tsx",
+    "take": true
+  },
+  "bb8e42f7745e": {
+    "file": "apps/server/src/ws.ts",
+    "take": true
+  },
+  "bcd9c7b0a23f": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.test.ts",
+    "take": false
+  },
+  "bcedf3e6e642": {
+    "file": "apps/web/src/components/BranchToolbar.tsx",
+    "take": true
+  },
+  "bf205c427a4c": {
+    "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+    "take": true
+  },
+  "c08489c997d0": {
+    "file": "apps/server/src/vcs/VcsDriverRegistry.ts",
+    "take": true
+  },
+  "c2f526e1beb3": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "c2f526e1beb3-2": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.test.ts",
+    "take": true
+  },
+  "c300413c9d5a": {
+    "file": "apps/server/src/server.ts",
+    "take": true
+  },
+  "c4daeceea439": {
+    "file": "apps/web/src/components/settings/ProjectDefaultsSettings.tsx",
+    "take": true
+  },
+  "c53d259bf530": {
+    "file": "packages/provider-opencode/src/server/toolItems.ts",
+    "take": true
+  },
+  "c5ba70cc539e": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true
+  },
+  "c6511679829f": {
+    "file": "apps/server/src/ws.ts",
+    "take": true
+  },
+  "c794ef7de747": {
+    "file": "apps/web/src/components/chat/useComposerSend.ts",
+    "take": false
+  },
+  "c95df24f29de": {
+    "file": "apps/server/src/observability/RpcInstrumentation.ts",
+    "take": false
+  },
+  "c9b0677fcb90": {
+    "file": "packages/provider-cursor/src/server/adapter.ts",
+    "take": true
+  },
+  "cb99df6b3295": {
+    "file": "apps/server/src/vcs/GitVcsDriver.test.ts",
+    "take": true
+  },
+  "cbdf68075bd0": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "cf24bad1ff6b": {
+    "file": "apps/mobile/src/features/threads/NewTaskDraftScreen.tsx",
+    "take": false
+  },
+  "d07f6ada4624": {
+    "file": "packages/shared/src/t3McpToolPresentation.ts",
+    "take": true
+  },
+  "d16101f18904": {
+    "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+    "take": true
+  },
+  "d2682131ddfe": {
+    "file": "apps/server/src/ws.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -664,12 +676,55 @@ const PROVIDER_STATUS_DEBOUNCE_MS = 200;\n \n // Middleware added later wraps middleware added earlier, so instrumentation wraps authorization.\n const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);\n+// Fork RPCs register in a layer of their own, so upstream's handler map merges without conflicts.\n+const ServerForkWsRpcGroup = ForkWsRpcGroup.middleware(RpcInstrumentation);\n+const ServerUpstreamWsRpcGroup = ServerWsRpcGroup.omit(\n+  WS_METHODS.vcsJjRunAction,\n+  WS_METHODS.vcsJjAssignPaths,\n+  WS_METHODS.vcsJjThreadWork,\n+);\n+\n+const layerForkWsRpc = ServerForkWsRpcGroup.toLayer(\n+  Effect.gen(function* () {\n+    const jjWorkflow = yield* JjWorkflow.JjWorkflow;\n+    const jjTurns = yield* JjTurnService.JjTurnService;\n+    const jjThreadWork = yield* JjThreadWork.JjThreadWork;\n+    return ServerForkWsRpcGroup.of({\n+      [WS_METHODS.vcsJjRunAction]: (input) => jjWorkflow.runAction(input),\n+      [WS_METHODS.vcsJjThreadWork]: (input) =>\n+        jjThreadWork.find(input.threadId).pipe(Effect.map((repositories) => ({ repositories }))),\n+      [WS_METHODS.vcsJjAssignPaths]: (input) =>\n+        jjTurns.assignPaths(input).pipe(Effect.map((assigned) => ({ assigned }))),\n+    });\n+  }),\n+);\n \n // RpcGroup.toLayer derives each handler's requirements by scanning every RPC in\n // the group, so its type cost grows with handlers × RPCs. Near 200 methods that\n // crosses TypeScript's instantiation limit and the layer's requirements degrade to\n // `any`, so the handlers are registered as two disjoint, smaller groups.\n-type ServerWsRpc = RpcGroup.Rpcs<typeof ServerWsRpcGroup>;\n+type ServerWsRpc = RpcGroup.Rpcs<typeof ServerUpstreamWsRpcGroup>;\n const SPLIT_WS_RPC_PREFIXES = [\"server\", \"pullRequests\", \"provider\", \"orchestration\"] as const;\n type SplitWsRpc = Extract<\n   ServerWsRpc,"
+  },
+  "d575ad69449f": {
+    "file": "apps/server/src/checkpointing/CheckpointStore.ts",
+    "take": true
+  },
+  "d6102982be38": {
+    "file": "apps/server/src/git/GitManager.ts",
+    "take": true
+  },
+  "d80b8633a766": {
+    "file": "packages/contracts/src/rpc.ts",
+    "take": true
+  },
+  "d852d2e1899c": {
+    "file": "apps/web/src/state/vcs.ts",
+    "take": true
+  },
+  "d9da7028703e": {
+    "file": "packages/client-runtime/src/state/vcs.ts",
+    "take": true
+  },
+  "da14b3798375": {
+    "file": "packages/provider-opencode/src/server/adapter.ts",
+    "take": true
+  },
+  "dafd844e781e": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "dd6fd3a0d62a": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": true
+  },
+  "dd9aeafe1d4c": {
+    "file": "apps/server/src/orchestration-v2/RunExecutionService.ts",
+    "take": true
+  },
+  "de2c4a50b2bc": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+    "take": true
+  },
+  "de71fdccfffd": {
+    "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+    "take": true
+  },
+  "df527761f187": {
+    "file": "apps/mobile/src/Stack.tsx",
+    "take": true
+  },
+  "e096f2fb5be1": {
+    "file": "apps/web/src/components/settings/ProjectDefaultsSettings.tsx",
+    "take": true
+  },
+  "e0e158e0ad28": {
+    "file": "apps/server/src/checkpointing/CheckpointStore.ts",
+    "take": true
+  },
+  "e2deaccad490": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "e40052d8917b": {
+    "file": "apps/server/src/checkpointing/CheckpointStore.test.ts",
+    "take": true
+  },
+  "e42ab5d00743": {
+    "file": "apps/mobile/src/state/thread-outbox-model.ts",
+    "take": false
+  },
+  "e4d010b7aa73": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "e9e790314eb8": {
+    "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.ts",
+    "take": true
+  },
+  "eaa00046dbb4": {
+    "file": "apps/web/src/components/BranchToolbar.tsx",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -618,6 +629,8 @@ export const BranchToolbar = memo(function BranchToolbar({\n   availableEnvironments,\n   onEnvironmentChange,\n   trailing,\n+  jjCwd = null,\n }: BranchToolbarProps) {\n   const branchSelectorRef = useRef<BranchToolbarBranchSelectorHandle>(null);\n   const threadRef = scopeThreadRef(environmentId, threadId);"
+  },
+  "ead31f63978e": {
+    "file": "apps/web/src/components/ChatView.tsx",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -1706,6 +1814,15 @@ export default function ChatView(props: ChatViewProps) {\n     }\n   }, [environmentId, gitStatusCwd, liveIsGitRepo]);\n   const isGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd) ?? true;\n+  const vcsKind = gitStatusQuery.data?.kind;\n   // Provider-native subagents cannot take messages; approvals and questions go to the top-level parent.\n   const showProviderSubagentBar = isProviderSubagent;\n   const composerMounted = !showProviderSubagentBar;"
+  },
+  "eb45f1ef43fc": {
+    "file": "apps/server/src/git/GitWorkflowService.ts",
+    "take": true
+  },
+  "eb767e9a5b2e": {
+    "file": "apps/server/src/git/GitManager.test.ts",
+    "take": true
+  },
+  "eccb033b39fc": {
+    "file": "apps/server/src/ws.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -212,6 +217,10 @@ import * as WorkspacePaths from \"./workspace/WorkspacePaths.ts\";\n import * as VcsStatusBroadcaster from \"./vcs/VcsStatusBroadcaster.ts\";\n import * as VcsProvisioningService from \"./vcs/VcsProvisioningService.ts\";\n import * as GitWorkflowService from \"./git/GitWorkflowService.ts\";\n+import * as JjThreadWork from \"./jj/JjThreadWork.ts\";\n+import * as JjTurnService from \"./jj/JjTurnService.ts\";\n+import * as JjWorkflow from \"./jj/JjWorkflow.ts\";\n import { refreshPushedPullRequests } from \"./git/refreshPushedPullRequests.ts\";\n import { linkCreatedPullRequest } from \"./git/linkCreatedPullRequest.ts\";\n import * as ReviewService from \"./review/ReviewService.ts\";"
+  },
+  "ed00f7148840": {
+    "file": "packages/client-runtime/src/t3ToolSummary.ts",
+    "take": true
+  },
+  "f225f5383b27": {
+    "file": "apps/server/src/orchestration-v2/CheckpointService.ts",
+    "take": true
+  },
+  "f369ba58c539": {
+    "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+    "take": true
+  },
+  "f3a0f1032ca5": {
+    "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.test.ts",
+    "take": true
+  },
+  "f5a7fcfec88c": {
+    "file": "apps/server/src/provider/AgentContextBudget.test.ts",
+    "take": true
+  },
+  "f78fe34192fe": {
+    "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+    "take": false
+  },
+  "f86fd6ad4073": {
+    "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+    "take": true
+  },
+  "f8beb6f53028": {
+    "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+    "take": true
+  },
+  "f9779c8986ea": {
+    "file": "apps/server/src/orchestration-v2/CheckpointService.test.ts",
+    "take": true
+  },
+  "fb1a3d855f23": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": false
+  },
+  "fbcf37d16e6b": {
+    "file": "apps/mobile/src/features/threads/ThreadGitControls.tsx",
+    "take": true
+  },
+  "fcc31c8631ea": {
+    "file": "apps/server/src/mcp/McpHttpServer.ts",
+    "take": true,
+    "note": "trimmed to the jj lines",
+    "text": "@@ -65,8 +66,12 @@ import {\n   PreviewSnapshotToolkit,\n   PreviewStandardToolkit,\n } from \"./toolkits/preview/tools.ts\";\n+import * as JjHandlers from \"./toolkits/jj/handlers.ts\";\n+import { JjToolkit } from \"./toolkits/jj/tools.ts\";\n import * as WorktreeHandlers from \"./toolkits/worktree/handlers.ts\";\n import { WorktreeToolkit } from \"./toolkits/worktree/tools.ts\";\n import * as WorktreeMcpService from \"./WorktreeMcpService.ts\";\n import * as PullRequestsHandlers from \"./toolkits/pullRequests/handlers.ts\";\n import { PullRequestsToolkit } from \"./toolkits/pullRequests/tools.ts\";"
+  },
+  "fdc38108ce1a": {
+    "file": "apps/server/src/orchestration-v2/CheckpointRestoreSafety.ts",
+    "take": true
+  },
+  "fdcabe4ca3fc": {
+    "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+    "take": true
+  },
+  "fdfffa88870c": {
+    "file": "apps/server/src/sourceControl/SourceControlDiscovery.ts",
+    "take": true
+  },
+  "fe09b46bd56e": {
+    "file": "packages/contracts/src/rpc.ts",
+    "take": true
+  }
+}
