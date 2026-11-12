@@ -64,6 +64,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
 import { resolveThreadRouteRef } from "../threadRoutes";
+import { claimsLayoutPrefix } from "../workspaceLayout/layoutKeys";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "var(--desktop-window-controls-inset, 90px)";
 
@@ -329,7 +330,8 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
     // A hidden sidebar would still save the toggle, so the shortcut does nothing without one.
     if (!showSidebar) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
+      // The flexible layout uses Ctrl+B as its prefix; its `b` command toggles the sidebar.
+      if (event.defaultPrevented || claimsLayoutPrefix(event)) return;
       if (
         event.target instanceof HTMLElement &&
         event.target.closest("[data-keybinding-capture]")
