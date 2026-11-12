@@ -1,9 +1,10 @@
 name: Fork release
 
-# Publishes this fork's CLI archives as a GitHub release, so `t3 update <version>` can install
-# them with T3CODE_RELEASE_BASE_URL=https://github.com/<owner>/t3code/releases/download.
+# Publishes this fork's CLI archives and Linux desktop apps as a GitHub release, so `t3 update <version>`
+# can install them with T3CODE_RELEASE_BASE_URL=https://github.com/<owner>/t3code/releases/download.
+# A desktop app built here takes this repository as its update feed, so it updates from this fork.
 # Upstream's release.yml only runs in pingdotgg/t3code; this reuses its per-platform build,
-# release-desktop.yml, without editing it. Desktop apps are built along the way but not published.
+# release-desktop.yml, without editing it.
 
 on:
   workflow_dispatch:
@@ -238,6 +239,28 @@ jobs:
           sha256sum t3-*.tar.gz > SHA256SUMS
           cat SHA256SUMS
 
+      - name: Download Linux desktop apps
+        uses: actions/download-artifact@v8
+        with:
+          pattern: desktop-linux-*
+          merge-multiple: true
+          path: desktop-assets
+
+      # The desktop updater reads latest-linux*.yml from the newest release; builder-debug.yml is a config dump.
+      - name: Check Linux desktop apps
+        shell: bash
+        env:
+          VERSION: ${{ needs.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd desktop-assets
+          rm -f builder-debug.yml
+          required=("T3-Code-$VERSION-x86_64.AppImage" "T3-Code-$VERSION-arm64.AppImage" "latest-linux.yml" "latest-linux-arm64.yml")
+          for file in "${required[@]}"; do
+            [[ -f "$file" ]] || { echo "Missing desktop asset: $file" >&2; ls -la; exit 1; }
+          done
+          ls -la
+
       - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
@@ -252,7 +275,12 @@ jobs:
             ```sh
             T3CODE_RELEASE_BASE_URL=https://github.com/${{ github.repository }}/releases/download t3 update ${{ needs.meta.outputs.version }}
             ```
+
+            The Linux desktop apps (`T3-Code-*.AppImage`) update themselves from this repository once installed.
           files: |
             release-assets/*.tar.gz
             release-assets/SHA256SUMS
+            desktop-assets/*.AppImage
+            desktop-assets/latest-linux*.yml
+            desktop-assets/*.blockmap
           token: ${{ github.token }}
