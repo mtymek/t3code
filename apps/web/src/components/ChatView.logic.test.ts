@@ -1349,6 +1349,10 @@ describe("planComposerTurn", () => {
       missingWorktreeBaseBranch: false,
       baseBranchForWorktree: null,
     });
+    expect(planComposerTurn({ ...base, activeThreadBranch: null, vcsKind: "jj" })).toMatchObject({
+      missingWorktreeBaseBranch: false,
+      baseBranchForWorktree: "@-",
+    });
   });
 
   it("queues behind a compaction of a stale session, except for /compact itself", () => {
