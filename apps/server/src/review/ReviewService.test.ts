@@ -1,5 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -11,7 +12,9 @@ import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
+import * as JjCli from "../vcs/JjCli.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
+import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as KnownWorkspaces from "../workspace/KnownWorkspaces.ts";
 import * as ReviewService from "./ReviewService.ts";
 
@@ -24,6 +27,8 @@ function layer(input: {
   readonly projectRoots?: ReadonlyArray<string> | "unavailable";
   readonly threadWorktrees?: ReadonlyArray<{ worktreePath: string; deleted?: boolean }>;
   readonly gitWorktrees?: ReadonlyArray<string>;
+  readonly detected?: VcsDriverRegistry.VcsDriverHandle;
+  readonly gitReviewBaseRefs?: Array<string | undefined>;
 }) {
   const projectRoots = input.projectRoots ?? [];
   return ReviewService.layer.pipe(
@@ -75,15 +80,26 @@ function layer(input: {
         detect: (request) =>
           Effect.sync(() => {
             input.detectCalls?.push({ cwd: request.cwd });
-            return null;
+            return input.detected ?? null;
           }),
       }),
     ),
     Layer.provide(
       Layer.mock(GitVcsDriver.GitVcsDriver)({
         listWorktreePaths: () => Effect.succeed([...(input.gitWorktrees ?? [])]),
+        getReviewBranchCommits: (request) =>
+          Effect.sync(() => {
+            input.gitReviewBaseRefs?.push(request.baseRef);
+            return { commits: [], truncated: false };
+          }),
+        getReviewDiffPreview: (request) =>
+          Effect.gen(function* () {
+            input.gitReviewBaseRefs?.push(request.baseRef);
+            return { cwd: request.cwd, generatedAt: yield* DateTime.now, sources: [] };
+          }),
       }),
     ),
+    Layer.provideMerge(JjCli.layer.pipe(Layer.provide(VcsProcess.layer))),
     Layer.provide(
       ServerSettings.ServerSettingsService.layerTest({
         worktreesDirectory: input.worktreesDirectory ?? "",
@@ -257,6 +273,78 @@ describe("ReviewService", () => {
         ),
       );
       assert.strictEqual(result.cwd, checkout);
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("compares a jj stack against what origin already has", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const workspaceRoot = yield* fs.realPath(
+        yield* fs.makeTempDirectoryScoped({ prefix: "t3-review-jj-" }),
+      );
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-review-base-" });
+      const gitReviewBaseRefs: Array<string | undefined> = [];
+      const detected = {
+        kind: "jj",
+        gitCompatible: true,
+        repository: { rootPath: workspaceRoot },
+      } as VcsDriverRegistry.VcsDriverHandle;
+
+      yield* Effect.gen(function* () {
+        const jj = yield* JjCli.JjCli;
+        const review = yield* ReviewService.ReviewService;
+        const run = (...args: ReadonlyArray<string>) =>
+          jj.read({ operation: "test", root: workspaceRoot, args });
+        const setOriginMain = (revision: string) =>
+          Effect.gen(function* () {
+            const commit = yield* run("log", "--no-graph", "-r", revision, "-T", "commit_id");
+            yield* jj.git({
+              operation: "test",
+              root: workspaceRoot,
+              args: ["update-ref", "refs/remotes/origin/main", commit],
+            });
+            // A colocated jj command imports the new Git ref as `main@origin`.
+            yield* run("status");
+            return commit;
+          });
+        const baseRefs = Effect.gen(function* () {
+          gitReviewBaseRefs.length = 0;
+          yield* review.getBranchCommits({ cwd: workspaceRoot });
+          yield* review.getDiffPreview({ cwd: workspaceRoot });
+          yield* review.getDiffPreview({ cwd: workspaceRoot, sourceKind: "working-tree" });
+          yield* review.getDiffPreview({ cwd: workspaceRoot, baseRef: "upstream/main" });
+          return [...gitReviewBaseRefs];
+        });
+
+        yield* jj.run({
+          operation: "test",
+          root: workspaceRoot,
+          withoutRepository: true,
+          args: ["git", "init", "--colocate", workspaceRoot],
+        });
+        yield* fs.writeFileString(`${workspaceRoot}/a.txt`, "pushed\n");
+        yield* run("commit", "-m", "pushed");
+        yield* fs.writeFileString(`${workspaceRoot}/b.txt`, "unpushed\n");
+        yield* run("commit", "-m", "unpushed");
+        const unpushed = yield* run("log", "--no-graph", "-r", "@-", "-T", "change_id");
+
+        assert.deepStrictEqual(yield* baseRefs, [undefined, undefined, undefined, "upstream/main"]);
+
+        yield* setOriginMain("@--");
+        assert.deepStrictEqual(yield* baseRefs, [
+          "origin/main",
+          "origin/main",
+          undefined,
+          "upstream/main",
+        ]);
+
+        // Once origin moves past the fork point, the fork point itself is the base.
+        const forkPoint = yield* run("log", "--no-graph", "-r", "@--", "-T", "commit_id");
+        yield* run("new", "@--", "-m", "elsewhere");
+        yield* setOriginMain("@");
+        yield* run("new", unpushed);
+        assert.deepStrictEqual(yield* baseRefs, [forkPoint, forkPoint, undefined, "upstream/main"]);
+      }).pipe(Effect.provide(layer({ workspaceRoot, baseDir, detected, gitReviewBaseRefs })));
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 });

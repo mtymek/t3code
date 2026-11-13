@@ -19,8 +19,11 @@ import {
 
 import * as ServerConfig from "../config.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
+import * as JjCli from "../vcs/JjCli.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
 import * as KnownWorkspaces from "../workspace/KnownWorkspaces.ts";
+
+const JJ_PUSH_REMOTE = "origin";
 
 const WORKSPACE_BOUND_SUBJECTS = {
   "ReviewService.getBranchCommits": "commit list",
@@ -51,6 +54,7 @@ export const make = Effect.gen(function* () {
   const vcsRegistry = yield* VcsDriverRegistry.VcsDriverRegistry;
   const git = yield* GitVcsDriver.GitVcsDriver;
   const knownWorkspaces = yield* KnownWorkspaces.KnownWorkspaces;
+  const jj = yield* JjCli.JjCli;
 
   const canonicalizePath = (value: string) => {
     const resolvedPath = path.resolve(value);
@@ -93,6 +97,40 @@ export const make = Effect.gen(function* () {
     });
   });
 
+  // jj leaves Git's HEAD detached, so Git finds no branch to compare against. Default to the
+  // newest ancestor of `@` that origin has, the remote `JjWorkflow.push` uses, so the branch
+  // diff and commit list show what a push would send.
+  const jjPushBaseRef = Effect.fn("ReviewService.jjPushBaseRef")(function* (root: string) {
+    const output = yield* jj
+      .read({
+        operation: "ReviewService.jjPushBaseRef",
+        root,
+        args: [
+          "--ignore-working-copy",
+          "log",
+          "--no-graph",
+          "-r",
+          `heads(::@ & ::remote_bookmarks(remote=exact:"${JJ_PUSH_REMOTE}"))`,
+          "-T",
+          `commit_id ++ "\\t" ++ remote_bookmarks.filter(|b| b.remote() == "${JJ_PUSH_REMOTE}").map(|b| b.name()).join("\\t") ++ "\\n"`,
+        ],
+      })
+      .pipe(Effect.orElseSucceed(() => ""));
+    const [commitId, bookmark] = output.split("\n")[0]!.split("\t");
+    if (!commitId) return undefined;
+    return bookmark ? `${JJ_PUSH_REMOTE}/${bookmark}` : commitId;
+  });
+
+  const withJjPushBase = <Input extends { readonly baseRef?: string | undefined }>(
+    handle: VcsDriverRegistry.VcsDriverHandle,
+    input: Input,
+  ) =>
+    handle.kind !== "jj" || input.baseRef !== undefined
+      ? Effect.succeed(input)
+      : jjPushBaseRef(handle.repository.rootPath).pipe(
+          Effect.map((baseRef) => (baseRef === undefined ? input : { ...input, baseRef })),
+        );
+
   const getBranchCommits: ReviewService["Service"]["getBranchCommits"] = Effect.fn(
     "ReviewService.getBranchCommits",
   )(function* (input) {
@@ -100,14 +138,14 @@ export const make = Effect.gen(function* () {
 
     const handle = yield* vcsRegistry.detect({ cwd: input.cwd, requestedKind: "auto" });
     if (!handle) return { commits: [], truncated: false };
-    if (handle.kind !== "git") {
+    if (!handle.gitCompatible) {
       return yield* new VcsUnsupportedOperationError({
         operation: "ReviewService.getBranchCommits",
         kind: handle.kind,
         detail: "Review commit lists require a Git repository.",
       });
     }
-    return yield* git.getReviewBranchCommits(input);
+    return yield* git.getReviewBranchCommits(yield* withJjPushBase(handle, input));
   });
 
   const getDiffPreview: ReviewService["Service"]["getDiffPreview"] = Effect.fn(
@@ -132,7 +170,12 @@ export const make = Effect.gen(function* () {
       });
     }
 
-    return yield* git.getReviewDiffPreview(input);
+    const comparesBranch =
+      input.commitSha === undefined &&
+      (input.file?.sourceKind ?? input.sourceKind) !== "working-tree";
+    return yield* git.getReviewDiffPreview(
+      comparesBranch ? yield* withJjPushBase(handle, input) : input,
+    );
   });
 
   const getDiffFileContents: ReviewService["Service"]["getDiffFileContents"] = Effect.fn(
