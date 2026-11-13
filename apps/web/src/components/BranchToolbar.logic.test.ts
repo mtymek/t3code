@@ -1,17 +1,55 @@
-import { type VcsRef } from "@t3tools/contracts";
+import { type JjCheckout, type VcsRef } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import { dedupeRemoteBranchesWithLocalMatches } from "@t3tools/shared/git";
 import {
   deriveLocalBranchNameFromRemoteRef,
   resolveBranchSelectionTarget,
+  resolveCheckoutOptions,
   resolveDraftEnvModeAfterBranchChange,
   resolveEffectiveEnvMode,
   resolveBranchToolbarPrBranch,
   resolveLocalCheckoutBranchMismatch,
   resolveLockedWorkspaceLabel,
+  resolveSelectedCheckout,
   sanitizeNewRefName,
   shouldIncludeBranchPickerItem,
 } from "./BranchToolbar.logic";
+
+describe("resolveCheckoutOptions", () => {
+  const checkout = (name: string, cwd: string, extra: Partial<JjCheckout> = {}): JjCheckout => ({
+    name,
+    kind: "jj",
+    cwd,
+    current: false,
+    changeId: "abcd1234",
+    description: "",
+    empty: true,
+    ...extra,
+  });
+  const options = resolveCheckoutOptions([
+    checkout("feature", "/repo-feature", { description: "wip: feature", empty: false }),
+    checkout("default", "/repo", { current: true }),
+    checkout("plain", "/repo-plain", { kind: "git", changeId: null }),
+  ])!;
+
+  it("lists the project's checkout first and labels the others by name", () => {
+    expect(options.map(({ label, detail }) => ({ label, detail }))).toEqual([
+      { label: "Current checkout", detail: "default" },
+      { label: "feature", detail: "wip: feature" },
+      { label: "plain", detail: "Git worktree" },
+    ]);
+    expect(resolveCheckoutOptions([])).toBeNull();
+    expect(resolveCheckoutOptions(undefined)).toBeNull();
+  });
+
+  it("selects the draft's checkout, the project's checkout, or nothing in New worktree mode", () => {
+    const select = (effectiveEnvMode: "local" | "worktree", activeWorktreePath: string | null) =>
+      resolveSelectedCheckout({ options, effectiveEnvMode, activeWorktreePath })?.label;
+    expect(select("local", "/repo-plain")).toBe("plain");
+    expect(select("local", null)).toBe("Current checkout");
+    expect(select("worktree", null)).toBeUndefined();
+  });
+});
 
 describe("resolveDraftEnvModeAfterBranchChange", () => {
   it("switches to local mode when returning from an existing worktree to the main worktree", () => {

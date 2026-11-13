@@ -76,4 +76,74 @@ it.layer(TestLayer)("JjStatusReader", (it) => {
       );
     }),
   );
+
+  it.effect(
+    "lists jj workspaces and Git worktrees without one, at the project's subdirectory",
+    () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const parent = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-jj-checkouts-" });
+        const repo = path.join(parent, "repo");
+        yield* jj(parent, ["git", "init", "--colocate", repo], true);
+        yield* fileSystem.makeDirectory(path.join(repo, "app"));
+        yield* fileSystem.writeFileString(path.join(repo, "app", "base.ts"), "base\n");
+        yield* jj(repo, ["commit", "-m", "base"]);
+        yield* jj(repo, [
+          "workspace",
+          "add",
+          "--name",
+          "feature",
+          "-m",
+          "wip: feature",
+          path.join(parent, "feature"),
+        ]);
+        yield* jj(repo, ["workspace", "add", "--name", "gone", path.join(parent, "gone")]);
+        yield* fileSystem.remove(path.join(parent, "gone"), { recursive: true });
+        const process = yield* VcsProcess.VcsProcess;
+        yield* process.run({
+          operation: "JjStatusReader.test.git",
+          command: "git",
+          cwd: repo,
+          args: ["worktree", "add", "--detach", path.join(parent, "plain")],
+          timeoutMs: 10_000,
+        });
+
+        const reader = yield* JjStatusReader.JjStatusReader;
+        const status = yield* reader.read(path.join(repo, "app"));
+        const root = yield* fileSystem.realPath(parent);
+        assert.deepStrictEqual(
+          status?.checkouts?.map(({ name, kind, cwd, current, description }) => ({
+            name,
+            kind,
+            cwd,
+            current,
+            description,
+          })),
+          [
+            {
+              name: "default",
+              kind: "jj",
+              cwd: path.join(root, "repo", "app"),
+              current: true,
+              description: "",
+            },
+            {
+              name: "feature",
+              kind: "jj",
+              cwd: path.join(root, "feature", "app"),
+              current: false,
+              description: "wip: feature",
+            },
+            {
+              name: "plain",
+              kind: "git",
+              cwd: path.join(root, "plain", "app"),
+              current: false,
+              description: "",
+            },
+          ],
+        );
+      }),
+  );
 });

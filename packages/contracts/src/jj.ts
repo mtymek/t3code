@@ -27,6 +27,22 @@ export const JjStackEntry = Schema.Struct({
 });
 export type JjStackEntry = typeof JjStackEntry.Type;
 
+/** A checkout of the repository: a jj workspace, or a Git worktree that has none. */
+export const JjCheckout = Schema.Struct({
+  /** The jj workspace name; a Git worktree's directory name. */
+  name: TrimmedNonEmptyString,
+  kind: Schema.Literals(["jj", "git"]),
+  /** Where a thread works: the checkout's root plus the status cwd's subdirectory. */
+  cwd: TrimmedNonEmptyString,
+  /** This checkout holds the status cwd. */
+  current: Schema.Boolean,
+  /** The workspace's `@`; null for a Git worktree. */
+  changeId: Schema.NullOr(TrimmedNonEmptyString),
+  description: Schema.String,
+  empty: Schema.Boolean,
+});
+export type JjCheckout = typeof JjCheckout.Type;
+
 export const JjStatus = Schema.Struct({
   operationId: TrimmedNonEmptyString,
   /** The change the stack starts from, labelled like `main@origin`. */
@@ -38,6 +54,8 @@ export const JjStatus = Schema.Struct({
   conflictedFiles: Schema.Array(TrimmedNonEmptyString),
   /** Files changed in `@` that no running or finished turn could claim. */
   unattributed: Schema.Array(TrimmedNonEmptyString),
+  /** Every checkout of the repository, this one included. Older servers leave it out. */
+  checkouts: Schema.optional(Schema.Array(JjCheckout)),
 });
 export type JjStatus = typeof JjStatus.Type;
 

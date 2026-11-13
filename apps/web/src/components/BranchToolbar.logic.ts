@@ -1,6 +1,7 @@
 import type {
   EnvironmentId,
   EnvironmentMachineKind,
+  JjCheckout,
   VcsRef,
   ProjectId,
   WorktreeSubmodules,
@@ -151,6 +152,64 @@ export function resolvePreviousWorktreeSeed(input: {
 
 export function resolvePreviousWorktreeLabel(seed: PreviousWorktreeSeed): string {
   return seed.branch ? `Previous worktree (${seed.branch})` : "Previous worktree";
+}
+
+const CHECKOUT_VALUE_PREFIX = "checkout:";
+
+export interface CheckoutOption {
+  readonly value: string;
+  readonly label: string;
+  readonly detail: string;
+  readonly cwd: string;
+  readonly isProjectCheckout: boolean;
+}
+
+/**
+ * A jj project's checkouts as workspace menu items, the project's own first. `checkouts` comes
+ * from a status read of the project root, so `current` marks the project's checkout. Null keeps
+ * the Git menu.
+ */
+export function resolveCheckoutOptions(
+  checkouts: ReadonlyArray<JjCheckout> | undefined,
+): ReadonlyArray<CheckoutOption> | null {
+  if (checkouts === undefined || checkouts.length === 0) return null;
+  return checkouts
+    .toSorted((left, right) => Number(right.current) - Number(left.current))
+    .map((checkout) => ({
+      value: `${CHECKOUT_VALUE_PREFIX}${checkout.cwd}`,
+      label: checkout.current ? resolveEnvModeLabel("local") : checkout.name,
+      detail: checkout.current
+        ? checkout.name
+        : checkout.kind === "git"
+          ? "Git worktree"
+          : checkout.description ||
+            [checkout.changeId, checkout.empty ? "empty" : null].filter(Boolean).join(" "),
+      cwd: checkout.cwd,
+      isProjectCheckout: checkout.current,
+    }));
+}
+
+export function findCheckoutOption(
+  options: ReadonlyArray<CheckoutOption>,
+  value: string | null,
+): CheckoutOption | undefined {
+  return value?.startsWith(CHECKOUT_VALUE_PREFIX)
+    ? options.find((option) => option.value === value)
+    : undefined;
+}
+
+/** The checkout a draft runs in, or undefined in New worktree mode. */
+export function resolveSelectedCheckout(input: {
+  readonly options: ReadonlyArray<CheckoutOption>;
+  readonly effectiveEnvMode: EnvMode;
+  readonly activeWorktreePath: string | null;
+}): CheckoutOption | undefined {
+  if (input.activeWorktreePath === null) {
+    return input.effectiveEnvMode === "worktree"
+      ? undefined
+      : input.options.find((option) => option.isProjectCheckout);
+  }
+  return input.options.find((option) => option.cwd === input.activeWorktreePath);
 }
 
 export function resolveEffectiveEnvMode(input: {
