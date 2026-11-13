@@ -62,6 +62,7 @@ import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
 import * as ThreadLaunch from "./ThreadLaunchService.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
+import { VcsTurnHooks } from "./VcsTurnHooks.ts";
 import * as ThreadTitleRegeneration from "./ThreadTitleRegenerationService.ts";
 import * as ProviderReplayHarness from "./testkit/ProviderReplayHarness.ts";
 import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
@@ -1176,6 +1177,46 @@ it.effect("fetches the origin base from the remote it already resolved", () => {
       remote: { remoteName: "origin", branchName: "main" },
     });
   }).pipe(Effect.provide(harness.layer));
+});
+
+it.effect("prepares a jj project's new worktree as a jj workspace without a Git base check", () => {
+  const harness = makeHarness({ hasCommit: () => Effect.succeed(false) });
+  const created: Array<unknown> = [];
+  const hooks = {
+    ...VcsTurnHooks.defaultValue(),
+    ownsLaunchWorkspace: () => Effect.succeed(true),
+    createLaunchWorkspace: (input: unknown) =>
+      Effect.sync(() => {
+        created.push(input);
+        return "/workspaces/repo/new-thread";
+      }),
+  };
+  return Effect.gen(function* () {
+    const launches = yield* ThreadLaunch.ThreadLaunchService;
+    const input = launchInput({
+      command: "command:launch:jj-workspace",
+      thread: "thread:launch:jj-workspace",
+      message: "Work in jj",
+      workspace: { type: "worktree", baseRef: "@-" },
+    });
+    yield* launches.checkWorktreeBase(input);
+    const launched = yield* launches.launch(input);
+    const projection = yield* preparationSettled(launched.threadId);
+    assert.equal(projection.thread.worktreePath, "/workspaces/repo/new-thread");
+    assert.equal(projection.thread.branch, null);
+    assert.deepEqual(created, [
+      {
+        projectId,
+        projectRoot: project.workspaceRoot,
+        threadId: launched.threadId,
+        title: "New thread",
+        baseRef: "@-",
+        startFromOrigin: false,
+      },
+    ]);
+    assert.equal(harness.createWorktree.mock.calls.length, 0);
+    assert.equal(harness.renameBranch.mock.calls.length, 0);
+  }).pipe(Effect.provide(harness.layer), Effect.provideService(VcsTurnHooks, hooks));
 });
 
 it.effect("shows the fetch diagnosis when preparing a worktree from origin fails", () => {

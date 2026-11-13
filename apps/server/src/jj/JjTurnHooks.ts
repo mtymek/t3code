@@ -80,6 +80,20 @@ export const layer = Layer.effect(
           .mergeBack({ forkCwd: fork.cwd, parentCwd: parent.cwd })
           .pipe(Effect.mapError(toHookError));
       }),
+      ownsLaunchWorkspace: Effect.fn("JjTurnHooks.ownsLaunchWorkspace")(function* (projectRoot) {
+        return (yield* workspaces.backendFor(projectRoot)) === "jj";
+      }),
+      createLaunchWorkspace: Effect.fn("JjTurnHooks.createLaunchWorkspace")(function* (input) {
+        const created = yield* workspaces
+          .create(input)
+          .pipe(Effect.mapError((cause) => new VcsTurnHookError({ detail: cause.message, cause })));
+        return created.worktreePath;
+      }),
+      removeLaunchWorkspace: Effect.fn("JjTurnHooks.removeLaunchWorkspace")(function* (path) {
+        yield* workspaces
+          .removeJjWorkspace(path)
+          .pipe(Effect.mapError((cause) => new VcsTurnHookError({ detail: cause.message, cause })));
+      }),
     };
   }),
 ).pipe(Layer.provide(Layer.merge(ProjectionStore.layer, ProjectStore.layer)));

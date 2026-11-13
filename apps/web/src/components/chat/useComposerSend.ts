@@ -23,6 +23,7 @@ import {
   type ModelSelection,
   type PreviewAnnotationPayload,
   type ThreadId,
+  type VcsDriverKind,
   ProviderInteractionMode,
   RuntimeMode,
 } from "@t3tools/contracts";
@@ -166,6 +167,7 @@ interface ComposerSendInput {
   readonly activeThread: EnvironmentThreadShell | undefined;
   readonly activeThreadKey: string | null;
   readonly activeThreadBranch: string | null;
+  readonly vcsKind: VcsDriverKind | undefined;
   readonly activeProject: EnvironmentProject | null;
   readonly activeProjectDefaultModelSelection: ModelSelection | null;
   readonly activeMessageCount: number;
@@ -263,6 +265,7 @@ export function useComposerSend(input: ComposerSendInput) {
     activeThread,
     activeThreadKey,
     activeThreadBranch,
+    vcsKind,
     activeProject,
     activeProjectDefaultModelSelection,
     activeMessageCount,
@@ -753,6 +756,7 @@ export function useComposerSend(input: ComposerSendInput) {
       sendEnvMode,
       worktreePath: activeThread.worktreePath,
       activeThreadBranch,
+      vcsKind,
       resumeCompactionTokens,
       keepFullHistory,
       phase,
@@ -1217,7 +1221,10 @@ export function useComposerSend(input: ComposerSendInput) {
                     prepareWorktree: {
                       projectCwd: activeProject.workspaceRoot,
                       baseBranch: baseBranchForWorktree,
-                      ...(startFromOrigin ? { startFromOrigin: true } : {}),
+                      // jj's `@-` base names no remote branch to start from.
+                      ...(startFromOrigin && activeThreadBranch !== null
+                        ? { startFromOrigin: true }
+                        : {}),
                     },
                     runSetupScript: true,
                   }

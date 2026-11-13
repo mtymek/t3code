@@ -2945,6 +2945,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThread,
     activeThreadKey,
     activeThreadBranch,
+    vcsKind,
     activeProject,
     activeProjectDefaultModelSelection,
     activeMessageCount,

@@ -28,6 +28,7 @@ export interface CreateManagedWorkspaceInput {
   readonly threadId: ThreadId;
   readonly title: string;
   readonly baseRef?: string | undefined;
+  readonly startFromOrigin?: boolean | undefined;
 }
 
 export class ManagedWorkspaces extends Context.Service<
@@ -100,6 +101,7 @@ const make = Effect.gen(function* () {
         name,
         description: `wip: ${input.title || name}`,
         baseRef: input.baseRef,
+        startFromOrigin: input.startFromOrigin,
       });
       return { worktreePath, backend: "jj" as const };
     },
