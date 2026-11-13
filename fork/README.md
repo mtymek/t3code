@@ -54,6 +54,11 @@ How the jj patch is selected and refreshed is in [hauke-jj/README.md](hauke-jj/R
   - Drop it if a Hauke sync brings his workspaces patch's launch path.
   - Likely conflicts: `ThreadLaunchService.ts` (the worktree block in `prepareInBackground` and its failure cleanup) and `useComposerSend.ts` (the `startFromOrigin` spread).
   - Mobile still requires a base branch for jj projects.
+- **Checkouts in the workspace menu for jj projects** (the `feat(web): a new jj thread can start in any checkout of its repository` commit).
+  - The jj status block gains `checkouts`: every jj workspace, plus Git worktrees of a colocated repository that have no jj workspace, read from `.git/worktrees` (`jj/JjCheckouts.ts`).
+  - A new thread's workspace menu lists them in place of Current checkout and Previous worktree (`resolveCheckoutOptions`), in both `BranchToolbar.tsx` and `BranchToolbarEnvModeSelector.tsx`.
+  - Likely conflicts: the Workspace menu groups in those two files.
+  - Unsupported on mobile.
 
 ## Versions
 
