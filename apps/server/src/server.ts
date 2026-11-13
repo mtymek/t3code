@@ -499,6 +499,7 @@ const layerKnownWorkspaces = KnownWorkspaces.layer.pipe(
 );
 
 const layerReview = ReviewService.layer.pipe(
+  Layer.provide(JjCli.layer),
   Layer.provideMerge(layerKnownWorkspaces),
   Layer.provideMerge(GitVcsDriver.layer),
   Layer.provideMerge(layerVcsDriverRegistry),
