@@ -149,6 +149,7 @@ import {
   VcsStatusSubscriptionInput,
   VcsStatusResult,
   VcsStatusStreamEvent,
+  TextGenerationError,
 } from "./git.ts";
 import {
   JjActionError,
@@ -375,6 +376,7 @@ import {
   ListTextGeneratorModelsResult,
   TextGeneratorError,
 } from "./settings.ts";
+import { UiAssistantPlan, UiAssistantPlanInput } from "./uiAssistant.ts";
 import {
   ScheduledTaskDeleteInput,
   ScheduledTaskDeleteResult,
@@ -554,6 +556,7 @@ export const WS_METHODS = {
   serverRetryResourceTelemetry: "server.retryResourceTelemetry",
   serverCheckOtlpEndpoint: "server.checkOtlpEndpoint",
   serverListTextGeneratorModels: "server.listTextGeneratorModels",
+  uiAssistantPlan: "uiAssistant.plan",
   serverPrepareTriage: "server.prepareTriage",
   serverSignalProcess: "server.signalProcess",
   serverReportClientActivity: "server.reportClientActivity",
@@ -998,6 +1001,12 @@ const WsServerListTextGeneratorModelsRpc = Rpc.make(WS_METHODS.serverListTextGen
   payload: ListTextGeneratorModelsInput,
   success: ListTextGeneratorModelsResult,
   error: Schema.Union([TextGeneratorError, EnvironmentAuthorizationError]),
+});
+
+const WsUiAssistantPlanRpc = Rpc.make(WS_METHODS.uiAssistantPlan, {
+  payload: UiAssistantPlanInput,
+  success: UiAssistantPlan,
+  error: Schema.Union([TextGenerationError, EnvironmentAuthorizationError]),
 });
 
 const WsServerPrepareTriageRpc = Rpc.make(WS_METHODS.serverPrepareTriage, {
@@ -2157,6 +2166,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerRetryResourceTelemetryRpc,
   WsServerCheckOtlpEndpointRpc,
   WsServerListTextGeneratorModelsRpc,
+  WsUiAssistantPlanRpc,
   WsServerPrepareTriageRpc,
   WsServerGetUsageSummaryRpc,
   WsServerRefreshUsageRatesRpc,

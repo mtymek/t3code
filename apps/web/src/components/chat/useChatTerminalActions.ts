@@ -24,6 +24,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import { MAX_TERMINALS_PER_GROUP } from "../../types";
 import {
+  selectActiveRightPanelSurface,
   selectThreadRightPanelState,
   type RightPanelSurface,
   useRightPanelStore,
@@ -339,14 +340,16 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
   };
   const addTerminalSurfaceStable = useStableCallback(addTerminalSurface);
   const splitPanelTerminal = (direction: "horizontal" | "vertical" = "horizontal") => {
-    if (
-      !activeThreadRef ||
-      activeRightPanelSurface?.kind !== "terminal" ||
-      activeRightPanelSurface.terminalIds.length >= MAX_TERMINALS_PER_GROUP
-    ) {
+    if (!activeThreadRef) return;
+    // Read from the store: the layout assistant splits a tab it opened before this render.
+    const surface = selectActiveRightPanelSurface(
+      useRightPanelStore.getState().byThreadKey,
+      activeThreadRef,
+    );
+    if (surface?.kind !== "terminal" || surface.terminalIds.length >= MAX_TERMINALS_PER_GROUP) {
       return;
     }
-    const surfaceId = activeRightPanelSurface.id;
+    const surfaceId = surface.id;
     const launched = terminalActions.launchTerminal({
       place: (terminalId) =>
         useRightPanelStore

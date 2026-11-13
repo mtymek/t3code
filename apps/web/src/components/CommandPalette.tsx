@@ -75,11 +75,13 @@ import {
   PinIcon,
   PinOffIcon,
   PlugIcon,
+  LayoutPanelLeftIcon,
   SquarePenIcon,
   TextSearchIcon,
   UserPlusIcon,
 } from "lucide-react";
 import { openThreadFind } from "./chat/threadFindStore";
+import { setUiAssistantOpen } from "../uiAssistantStore";
 import {
   useDeferredValue,
   useEffect,
@@ -1339,6 +1341,20 @@ function OpenCommandPaletteDialog(props: {
       shortcutCommand: "chat.find",
       run: async () => {
         openThreadFind(activeThreadKey);
+      },
+    });
+  }
+
+  if (activeThreadKey !== null) {
+    actionItems.push({
+      kind: "action",
+      value: "action:arrange-layout",
+      title: "Arrange layout…",
+      searchTerms: ["layout", "arrange", "split", "panel", "browser", "terminal", "ask"],
+      icon: <LayoutPanelLeftIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "uiAssistant.open",
+      run: async () => {
+        setUiAssistantOpen(true);
       },
     });
   }

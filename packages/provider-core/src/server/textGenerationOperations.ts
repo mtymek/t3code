@@ -1,7 +1,12 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-import { type ChatAttachment, type ModelSelection, TextGenerationError } from "@t3tools/contracts";
+import {
+  type ChatAttachment,
+  type ModelSelection,
+  TextGenerationError,
+  UiAssistantPlan,
+} from "@t3tools/contracts";
 import { formatGeneratedBranchName, sanitizeFeatureBranchName } from "@t3tools/shared/git";
 import { extractJsonObject } from "@t3tools/shared/schemaJson";
 
@@ -168,6 +173,18 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
       });
     });
 
+  const generateUiAssistantPlan: ProviderTextGeneration["generateUiAssistantPlan"] = Effect.fn(
+    `${name}.generateUiAssistantPlan`,
+  )(function* (input) {
+    return yield* run({
+      operation: "generateUiAssistantPlan",
+      cwd: input.cwd,
+      prompt: input.prompt,
+      outputSchema: UiAssistantPlan,
+      modelSelection: input.modelSelection,
+    });
+  });
+
   const generateReviewGuide: ProviderTextGeneration["generateReviewGuide"] = Effect.fn(
     `${name}.generateReviewGuide`,
   )(function* (input) {
@@ -187,5 +204,6 @@ export function fromRunner(name: string, run: Runner): ProviderTextGeneration {
     generateThreadTitle,
     generateReviewGuide,
     generateTranscriptionPostProcessing,
+    generateUiAssistantPlan,
   } satisfies ProviderTextGeneration;
 }

@@ -52,6 +52,9 @@ import { armFreshSession, disarmFreshSession, useFreshSessionArmed } from "./cha
 import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
 import { useWorktreeSetup } from "./chat/useWorktreeSetup";
 import { useChatShortcuts } from "./chat/useChatShortcuts";
+import { UiAssistantDialog } from "./uiAssistant/UiAssistantDialog";
+import { useUiAssistant } from "./uiAssistant/useUiAssistant";
+import { setUiAssistantOpen } from "../uiAssistantStore";
 import { ChatBannerLane } from "./chat/ChatBannerLane";
 import * as Schema from "effect/Schema";
 import {
@@ -1891,11 +1894,14 @@ export default function ChatView(props: ChatViewProps) {
     addTerminalContextToDraftStable,
     addTerminalSurfaceStable,
     closePanelTerminalStable,
+    createNewTerminalStable,
     lastInvokedScriptByProjectId,
     runProjectScriptStable,
     runShellCommandStable,
+    setTerminalOpenStable,
     splitPanelTerminalStable,
     splitPanelTerminalVerticalStable,
+    splitTerminalStable,
     toggleTerminalVisibilityStable,
     shortcuts: terminalShortcuts,
   } = useChatTerminalActions({
@@ -2413,6 +2419,26 @@ export default function ChatView(props: ChatViewProps) {
     closeRightPanelSurface,
   });
   const pullRequestSurfaceAvailable = supportsPullRequests && pullRequestPanelTarget !== null;
+  const submitUiAssistant = useUiAssistant({
+    threadRef: embedded ? null : activeThreadRef,
+    capabilities: {
+      browserAvailable: browserAvailable && canOperatePreview,
+      diffAvailable: isServerThread && isGitRepo,
+      pullRequestsAvailable: pullRequestsSurfaceAvailable,
+      terminalAvailable: canOperateTerminal,
+    },
+    actions: {
+      addDiffSurface: addDiffSurfaceStable,
+      addFilesSurface: addFilesSurfaceStable,
+      addPullRequestsSurface: addPullRequestsSurfaceStable,
+      addTerminalSurface: addTerminalSurfaceStable,
+      splitPanelTerminal: splitPanelTerminalStable,
+      toggleTerminalVisibility: toggleTerminalVisibilityStable,
+      setTerminalOpen: setTerminalOpenStable,
+      createNewTerminal: createNewTerminalStable,
+      splitTerminal: splitTerminalStable,
+    },
+  });
   const {
     acknowledgeActiveThreadWoke,
     activeBranchMismatchKey,
@@ -2769,6 +2795,10 @@ export default function ChatView(props: ChatViewProps) {
       "thread.stop": ({ event }) => {
         if (!canInterruptRunningThread) return false;
         if (!event.repeat) void onInterruptStable();
+      },
+      "uiAssistant.open": ({ event }) => {
+        if (embedded) return false;
+        if (!event.repeat) setUiAssistantOpen(true);
       },
     },
     fallback: (command) => {
@@ -3313,6 +3343,7 @@ export default function ChatView(props: ChatViewProps) {
           state={deviceState}
         />
       )}
+      {embedded ? null : <UiAssistantDialog onSubmit={submitUiAssistant} />}
       {rightPanelControlsAtRoot && !embedded ? panelLayoutControls : null}
       <div
         className={cn(

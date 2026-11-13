@@ -840,6 +840,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["generated thread titles source control content default provider"],
   },
   {
+    id: "ui-assistant-model",
+    title: "Layout assistant model",
+    to: "/settings/threads",
+    scope: "environment",
+    searchTerms: ["layout assistant arrange popup split panel model haiku"],
+  },
+  {
     id: "thread-title-instructions",
     title: "Thread title instructions",
     to: "/settings/threads",

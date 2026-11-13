@@ -1385,6 +1385,10 @@ export const ServerSettings = Schema.Struct({
   speechPostProcessingModelSelection: Schema.NullOr(ModelSelection).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
+  // Null follows textGenerationModelSelection; the layout assistant wants a fast model.
+  uiAssistantModelSelection: Schema.NullOr(ModelSelection).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   projectAgentBrowserAccessOverrides: Schema.Record(ProjectId, Schema.Boolean).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
@@ -1833,6 +1837,7 @@ export const ServerSettingsPatch = Schema.Struct({
   speechModelUnloadTimeout: Schema.optionalKey(SpeechModelUnloadTimeout),
   speechProjectCustomWords: Schema.optionalKey(SpeechCustomWords),
   speechPostProcessingModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  uiAssistantModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   projectAgentBrowserAccessOverrides: Schema.optionalKey(
     Schema.Record(ProjectId, Schema.NullOr(Schema.Boolean)),
   ),

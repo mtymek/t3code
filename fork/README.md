@@ -42,6 +42,12 @@ How the jj patch is selected and refreshed is in [hauke-jj/README.md](hauke-jj/R
   - Based on Mathias Aerts' branch for upstream Ideas discussion [#31385](https://github.com/pingdotgg/t3code/discussions/31385). Drop this commit if upstream merges that feature.
   - Published theme files (`~/.t3/userdata/themes/`) may carry the new keys safely: builds without this patch ignore unknown roles there. A theme file imported through the editor's import does not; it is rejected.
   - `ThemeEditorPanel.tsx`'s import block is the likely conflict.
+- **Arrange layout popup** (the `feat(web): Arrange layout popup` commit).
+  - `Ctrl+.` (`Cmd+.` on macOS) or **Arrange layout…** in the command palette takes a plain-language request for the current thread, such as "browser on the right, terminal below". A model plans it as typed commands and the web client runs them, with Undo in the toast.
+  - The plan runs through `TextGeneration.generateUiAssistantPlan` with the `uiAssistantModelSelection` setting (Settings → Threads → Layout assistant model, single-environment scope), which follows the text generation model when unset.
+  - New code is in `apps/web/src/components/uiAssistant/`, `apps/server/src/uiAssistant/` and `packages/contracts/src/uiAssistant.ts`. Every `ProviderTextGeneration` implementation and test fake gains `generateUiAssistantPlan`; a new upstream driver or fake needs it too.
+  - Likely conflicts: `ChatView.tsx` (the `useUiAssistant` call, the `uiAssistant.open` shortcut and the dialog next to `DeviceSetupDialogHost`), `CommandPalette.tsx`, `SettingsPanels.tsx` and `useChatTerminalActions.ts` (`splitPanelTerminal` reads the active surface from the store).
+  - Unsupported on mobile.
 
 ## Versions
 

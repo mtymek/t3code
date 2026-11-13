@@ -5,6 +5,7 @@ import type {
   ProjectId,
   PullRequestReviewGuide,
   TextGenerationError,
+  UiAssistantPlan,
 } from "@t3tools/contracts";
 import type * as Effect from "effect/Effect";
 
@@ -113,10 +114,20 @@ export interface TranscriptionPostProcessingResult {
   transcription: string;
 }
 
+export interface UiAssistantPlanInput {
+  cwd: string;
+  prompt: string;
+  modelSelection: ModelSelection;
+}
+
 export interface ProviderTextGeneration {
   readonly generateTranscriptionPostProcessing: (
     input: TranscriptionPostProcessingInput,
   ) => Effect.Effect<TranscriptionPostProcessingResult, TextGenerationError>;
+
+  readonly generateUiAssistantPlan: (
+    input: UiAssistantPlanInput,
+  ) => Effect.Effect<UiAssistantPlan, TextGenerationError>;
 
   readonly generateCommitMessage: (
     input: CommitMessageGenerationInput,
