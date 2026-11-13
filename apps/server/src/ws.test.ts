@@ -96,6 +96,7 @@ import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
 import * as ModelManifest from "./provider/ModelManifest.ts";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
 import * as OtlpEndpointCheck from "./observability/OtlpEndpointCheck.ts";
+import * as UiAssistant from "./uiAssistant/UiAssistant.ts";
 import * as PairingGrantStore from "./auth/PairingGrantStore.ts";
 import * as RpcAuthorization from "./auth/RpcAuthorization.ts";
 import * as PeerLinkRequests from "./peer/PeerLinkRequests.ts";
@@ -149,6 +150,7 @@ import * as ProjectFaviconResolver from "./project/ProjectFaviconResolver.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
 import * as TriageService from "./triage/TriageService.ts";
 import * as TextGenerators from "./textGeneration/TextGenerators.ts";
+import * as TextGeneration from "./textGeneration/TextGeneration.ts";
 import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
 import * as SecretCheck from "./secrets/SecretCheck.ts";
@@ -850,6 +852,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(OrchestrationEventStore.OrchestrationEventStore)({}),
   Layer.mock(Orchestrator.OrchestratorV2)({}),
   Layer.mock(OtlpEndpointCheck.OtlpEndpointCheck)({}),
+  Layer.mock(UiAssistant.UiAssistant)({}),
   Layer.mock(PairingGrantStore.PairingGrantStore)({}),
   Layer.mock(PeerLinks.PeerLinks)({}),
   Layer.mock(PeerLinkRequests.PeerLinkRequests)({}),
@@ -956,6 +959,8 @@ it.live.each([
         }),
         Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
         Layer.mock(ProviderRegistry.ProviderRegistry)({}),
+        // The Arrange layout planner's layer reads it at construction.
+        Layer.mock(TextGeneration.TextGeneration)({}),
         Layer.mock(UsageLimitSources.UsageLimitSources)({}),
         Layer.mock(ExternalLauncher.ExternalLauncher)({}),
         Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),

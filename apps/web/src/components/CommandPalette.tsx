@@ -77,6 +77,7 @@ import {
   PinIcon,
   PinOffIcon,
   PlugIcon,
+  LayoutPanelLeftIcon,
   SquarePenIcon,
   TextSearchIcon,
   UserPlusIcon,
@@ -84,6 +85,7 @@ import {
 import { openThreadFind } from "./chat/threadFindStore";
 import { dispatchPreviewAction } from "./preview/previewActionBus";
 import { previewBridge } from "./preview/previewBridge";
+import { setUiAssistantOpen } from "../uiAssistantStore";
 import {
   useDeferredValue,
   useEffect,
@@ -1385,6 +1387,20 @@ function OpenCommandPaletteDialog(props: {
       shortcutCommand: "preview.find",
       run: async () => {
         dispatchPreviewAction("find");
+      },
+    });
+  }
+
+  if (activeThreadKey !== null) {
+    actionItems.push({
+      kind: "action",
+      value: "action:arrange-layout",
+      title: "Arrange layout…",
+      searchTerms: ["layout", "arrange", "split", "panel", "browser", "terminal", "ask"],
+      icon: <LayoutPanelLeftIcon className={ITEM_ICON_CLASS} />,
+      shortcutCommand: "uiAssistant.open",
+      run: async () => {
+        setUiAssistantOpen(true);
       },
     });
   }

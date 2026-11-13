@@ -4,6 +4,7 @@ import {
   type ModelSelection,
   type ServerProviderModel,
   TextGenerationError,
+  UiAssistantPlan,
 } from "@t3tools/contracts";
 import type { MuseSettings } from "../settings.ts";
 import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@t3tools/shared/git";
@@ -359,6 +360,16 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
         modelSelection: input.modelSelection,
       });
     });
+  const generateUiAssistantPlan: ProviderTextGeneration["generateUiAssistantPlan"] = Effect.fn(
+    "MuseTextGeneration.generateUiAssistantPlan",
+  )(function* (input) {
+    return yield* runMuseJson({
+      operation: "generateUiAssistantPlan",
+      prompt: input.prompt,
+      outputSchema: UiAssistantPlan,
+      modelSelection: input.modelSelection,
+    });
+  });
   const generateReviewGuide: ProviderTextGeneration["generateReviewGuide"] = () =>
     Effect.fail(investigationUnsupported("generateReviewGuide", "Muse Code"));
   return {
@@ -368,5 +379,6 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
     generateThreadTitle,
     generateReviewGuide,
     generateTranscriptionPostProcessing,
+    generateUiAssistantPlan,
   } satisfies ProviderTextGeneration;
 });

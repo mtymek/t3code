@@ -115,6 +115,8 @@ import { nativeLanguageName, SYSTEM_LANGUAGE } from "@t3tools/client-runtime/loc
 import { SUPPORTED_LOCALES } from "../../i18n/locales";
 import { BackgroundActivitySettingsRow } from "./BackgroundActivitySettings";
 import { AdvancedSettings } from "./AdvancedSettings";
+import { DedicatedTextModelRow } from "./DedicatedTextModelRow";
+import { resolveUiAssistantModelSelection } from "@t3tools/shared/serverSettings";
 import { PullRequestLinksOpenInAppSetting } from "./IntegrationsSettings";
 import { StorageCleanupSections } from "./StorageSettings";
 import { UpdateTrackSwitchDialog } from "./UpdateTrackSwitchDialog";
@@ -2087,6 +2089,16 @@ export function ThreadsSettingsPanel() {
             )
           }
         />
+        {scope.kind === "environment" ? (
+          <DedicatedTextModelRow
+            settingKey="uiAssistantModelSelection"
+            searchId="ui-assistant-model"
+            title="Layout assistant model"
+            description="Model that turns Arrange layout requests into panel and terminal changes. A fast, cheap model fits. When disabled, use the text generation model."
+            switchLabel="Use a separate layout assistant model"
+            resolve={resolveUiAssistantModelSelection}
+          />
+        ) : null}
         <AdvancedSettings
           targetIds={[
             searchableSetting("thread-title-instructions").id,

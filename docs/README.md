@@ -11,6 +11,7 @@
 - [Project settings](./user/project-settings.md)
 - [Appearance and themes](./user/appearance.md)
 - [Keyboard shortcuts](./user/keybindings.md)
+- [Arrange layout](./user/arrange-layout.md)
 - [Voice input](./user/voice-input.md)
 - [Text generation models](./user/text-generation.md)
 - [SnapShots](./user/snap-shot.md)
