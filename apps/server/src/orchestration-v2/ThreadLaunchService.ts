@@ -5,6 +5,7 @@ import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
   CommandId,
   type ChatAttachment,
+  type GitCommandError,
   type MessageId,
   type ModelSelection,
   type OrchestrationV2Actor,
@@ -59,6 +60,7 @@ import { makeProviderFailure } from "@t3tools/provider-core/server/failure";
 import { randomUuidV4 } from "@t3tools/provider-core/server/randomUuid";
 import { DispatchModeLimit } from "./DispatchModeLimit.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
+import { type VcsTurnHookError, VcsTurnHooks } from "./VcsTurnHooks.ts";
 
 // The agent waits for its branch name; a rate-limited provider would hold it for minutes.
 const BRANCH_NAME_TIMEOUT = "20 seconds";
@@ -116,7 +118,7 @@ export interface ThreadLaunchInput {
 
 type PreparationInput = Pick<
   ThreadLaunchInput,
-  "commandId" | "projectId" | "workspaceStrategy" | "initialMessage"
+  "commandId" | "projectId" | "workspaceStrategy" | "initialMessage" | "title"
 > & {
   readonly reusedWorktree?: { readonly baseRef: string };
 };
@@ -267,6 +269,7 @@ const make = Effect.gen(function* () {
     strategy.type === "root" && strategy.branch === undefined
       ? git.currentBranch(workspaceRoot).pipe(Effect.orElseSucceed(() => null))
       : Effect.succeed(strategy.branch ?? null);
+  const vcsTurnHooks = yield* VcsTurnHooks;
   const preparationScope = yield* Scope.make("sequential");
   const scheduledLaunches = yield* Ref.make<ReadonlySet<CommandId>>(new Set());
   yield* Effect.addFinalizer(() => Scope.close(preparationScope, Exit.void));
@@ -373,6 +376,7 @@ const make = Effect.gen(function* () {
     const project = Option.getOrUndefined(projectOption);
     if (project === undefined) return;
     const cwd = project.workspaceRoot;
+    if (yield* vcsTurnHooks.ownsLaunchWorkspace(cwd)) return;
     const { baseRef, branch } = strategy;
     const checksBranch = branch !== undefined && !isTemporaryWorktreeBranch(branch);
     // Errors keep their order below: missing repository, then base ref, then branch conflict.
@@ -516,6 +520,10 @@ const make = Effect.gen(function* () {
       ),
     );
 
+    // jj projects get a jj workspace in place of a Git worktree (patches/jujutsu.md).
+    const vcsWorkspace =
+      input.workspaceStrategy.type === "worktree" &&
+      (yield* vcsTurnHooks.ownsLaunchWorkspace(project.workspaceRoot));
     const reused = input.reusedWorktree;
     const tracked = input.workspaceStrategy.type === "worktree" || reused !== undefined;
     let createdWorktreePath: string | null = null;
@@ -616,7 +624,40 @@ const make = Effect.gen(function* () {
         input.workspaceStrategy.type === "existing_worktree"
           ? input.workspaceStrategy.worktreePath
           : null;
-      if (input.workspaceStrategy.type === "worktree") {
+      if (input.workspaceStrategy.type === "worktree" && vcsWorkspace) {
+        if (runId !== null) {
+          yield* threads
+            .dispatch({
+              type: "prepared-run.progress",
+              commandId: CommandId.make(`${input.commandId}:progress:worktree`),
+              threadId,
+              runId,
+              phase: "worktree",
+            })
+            .pipe(Effect.mapError(mapError(input, "update-thread", threadId)));
+        }
+        branch = null;
+        yield* setupTracker.stageStatus(threadId, "fetch", "skipped");
+        yield* setupTracker.stageStatus(threadId, "checkout", "running");
+        worktreePath = yield* vcsTurnHooks
+          .createLaunchWorkspace({
+            projectId: input.projectId,
+            projectRoot: project.workspaceRoot,
+            threadId,
+            title: input.title,
+            baseRef: input.workspaceStrategy.baseRef,
+            startFromOrigin: input.workspaceStrategy.startFromOrigin === true,
+          })
+          .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
+        createdWorktreePath = worktreePath;
+        yield* setupTracker.update(threadId, (snapshot) => ({
+          ...snapshot,
+          worktreePath,
+          branch: null,
+        }));
+        yield* setupTracker.stageStatus(threadId, "checkout", "done");
+      }
+      if (input.workspaceStrategy.type === "worktree" && !vcsWorkspace) {
         if (runId !== null) {
           yield* threads
             .dispatch({
@@ -1043,40 +1084,46 @@ const make = Effect.gen(function* () {
             const removedPath = createdWorktreePath;
             const removedBranch = createdBranch;
             // Forget worktrees only after removal succeeds; failed removals must not reuse partially written checkouts.
-            yield* git
-              .removeWorktree({ cwd: project.workspaceRoot, path: removedPath, force: true })
-              .pipe(
-                Effect.andThen(
-                  removedBranch === null
-                    ? Effect.void
-                    : git
-                        .deleteLocalBranch({
-                          cwd: project.workspaceRoot,
-                          refName: removedBranch,
-                          force: true,
-                        })
-                        .pipe(Effect.ignoreCause({ log: true })),
-                ),
-                Effect.andThen(
-                  threads
-                    .dispatch({
-                      type: "thread.metadata.update",
-                      commandId: CommandId.make(`${input.commandId}:cancel-workspace`),
-                      threadId,
-                      worktreePath: null,
-                      branch: null,
-                    })
-                    .pipe(Effect.ignore),
-                ),
-                Effect.catchCause((removeCause) =>
-                  Effect.logWarning("Failed to remove an abandoned thread worktree", {
-                    commandId: input.commandId,
-                    threadId,
+            const removeWorkspace: Effect.Effect<void, GitCommandError | VcsTurnHookError> =
+              vcsWorkspace
+                ? vcsTurnHooks.removeLaunchWorkspace(removedPath)
+                : git.removeWorktree({
+                    cwd: project.workspaceRoot,
                     path: removedPath,
-                    cause: removeCause,
-                  }),
-                ),
-              );
+                    force: true,
+                  });
+            yield* removeWorkspace.pipe(
+              Effect.andThen(
+                removedBranch === null
+                  ? Effect.void
+                  : git
+                      .deleteLocalBranch({
+                        cwd: project.workspaceRoot,
+                        refName: removedBranch,
+                        force: true,
+                      })
+                      .pipe(Effect.ignoreCause({ log: true })),
+              ),
+              Effect.andThen(
+                threads
+                  .dispatch({
+                    type: "thread.metadata.update",
+                    commandId: CommandId.make(`${input.commandId}:cancel-workspace`),
+                    threadId,
+                    worktreePath: null,
+                    branch: null,
+                  })
+                  .pipe(Effect.ignore),
+              ),
+              Effect.catchCause((removeCause) =>
+                Effect.logWarning("Failed to remove an abandoned thread worktree", {
+                  commandId: input.commandId,
+                  threadId,
+                  path: removedPath,
+                  cause: removeCause,
+                }),
+              ),
+            );
           }
         }),
       ),
@@ -1493,12 +1540,13 @@ const make = Effect.gen(function* () {
     const reuse =
       workspacePreparation.type === "worktree" &&
       thread.worktreePath !== null &&
-      thread.branch !== null
+      // A jj workspace has no branch.
+      (thread.branch !== null || (yield* vcsTurnHooks.ownsLaunchWorkspace(thread.worktreePath)))
         ? {
             strategy: {
               type: "existing_worktree" as const,
               worktreePath: thread.worktreePath,
-              branch: thread.branch,
+              ...(thread.branch === null ? {} : { branch: thread.branch }),
             },
             reusedWorktree: { baseRef: workspacePreparation.baseRef },
           }
@@ -1507,6 +1555,7 @@ const make = Effect.gen(function* () {
       {
         commandId: input.commandId,
         projectId: thread.projectId,
+        title: thread.title,
         workspaceStrategy: reuse?.strategy ?? workspacePreparation,
         ...(reuse === null ? {} : { reusedWorktree: reuse.reusedWorktree }),
         ...(message === undefined

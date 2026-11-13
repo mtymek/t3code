@@ -1,5 +1,9 @@
 import { toServerClock } from "@t3tools/client-runtime/clock";
-import { type OrchestrationV2ProviderTurn, type RunAttemptId } from "@t3tools/contracts";
+import {
+  type OrchestrationV2ProviderTurn,
+  type RunAttemptId,
+  type VcsDriverKind,
+} from "@t3tools/contracts";
 import {
   deriveLatestThreadRun,
   deriveThreadRuntime,
@@ -1345,6 +1349,7 @@ export function planComposerTurn(input: {
   readonly activeThreadBranch: string | null;
   /** The server launches a No project worktree request at its root, so it needs no base. */
   readonly isScratchProject: boolean;
+  readonly vcsKind?: VcsDriverKind | undefined;
   readonly resumeCompactionTokens: number | null;
   readonly keepFullHistory: boolean;
   readonly phase: SessionPhase;
@@ -1356,6 +1361,8 @@ export function planComposerTurn(input: {
     !input.sendQueuesBehindSetup && (!input.isServerThread || input.activeMessageCount === 0);
   const shouldCreateWorktree =
     isFirstMessage && input.sendEnvMode === "worktree" && !input.worktreePath;
+  // jj keeps Git's HEAD detached, so a new jj workspace starts from the checkout's `@-`.
+  const worktreeBase = input.activeThreadBranch ?? (input.vcsKind === "jj" ? "@-" : null);
   // A stale Claude session compacts before this message so the turn does not re-read the
   // old history. The message queues behind the /compact run, since steering into it is
   // rejected.
@@ -1371,9 +1378,8 @@ export function planComposerTurn(input: {
   return {
     // In worktree mode, require an explicit base branch so we don't silently
     // fall back to local execution when branch selection is missing.
-    missingWorktreeBaseBranch:
-      shouldCreateWorktree && !input.activeThreadBranch && !input.isScratchProject,
-    baseBranchForWorktree: shouldCreateWorktree ? input.activeThreadBranch : null,
+    missingWorktreeBaseBranch: shouldCreateWorktree && !worktreeBase && !input.isScratchProject,
+    baseBranchForWorktree: shouldCreateWorktree ? worktreeBase : null,
     compactBeforeSend,
     turnDispatchMode:
       compactBeforeSend || (input.sendQueuesBehindSetup && dispatchMode !== "steer")

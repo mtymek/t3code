@@ -48,6 +48,12 @@ How the jj patch is selected and refreshed is in [hauke-jj/README.md](hauke-jj/R
   - New code is in `apps/web/src/components/uiAssistant/`, `apps/server/src/uiAssistant/` and `packages/contracts/src/uiAssistant.ts`. Every `ProviderTextGeneration` implementation and test fake gains `generateUiAssistantPlan`; a new upstream driver or fake needs it too.
   - Likely conflicts: `ChatView.tsx` (the `useUiAssistant` call, the `uiAssistant.open` shortcut and the dialog next to `DeviceSetupDialogHost`), `CommandPalette.tsx`, `SettingsPanels.tsx` and `useChatTerminalActions.ts` (`splitPanelTerminal` reads the active surface from the store).
   - Unsupported on mobile.
+- **New worktree in jj projects** (the `feat: New worktree in a jj project creates a jj workspace` commit).
+  - The composer bases a jj thread's workspace on the checkout's `@-`, because jj leaves no current branch (`planComposerTurn`).
+  - `ThreadLaunchService` asks `VcsTurnHooks.ownsLaunchWorkspace` and, for jj, creates and removes the workspace through `createLaunchWorkspace` and `removeLaunchWorkspace` (`JjTurnHooks`, `ManagedWorkspaces`) in place of `git worktree add`.
+  - Drop it if a Hauke sync brings his workspaces patch's launch path.
+  - Likely conflicts: `ThreadLaunchService.ts` (the worktree block in `prepareInBackground` and its failure cleanup) and `useComposerSend.ts` (the `startFromOrigin` spread).
+  - Mobile still requires a base branch for jj projects.
 
 ## Versions
 

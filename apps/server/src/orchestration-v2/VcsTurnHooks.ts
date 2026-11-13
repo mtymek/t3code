@@ -1,4 +1,4 @@
-import type { CheckpointRef, RunId, ThreadId } from "@t3tools/contracts";
+import type { CheckpointRef, ProjectId, RunId, ThreadId } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -60,6 +60,19 @@ export class VcsTurnHooks extends Context.Reference<{
     readonly sourceThreadId: ThreadId;
     readonly targetThreadId: ThreadId;
   }) => Effect.Effect<void, VcsTurnHookError>;
+  /** Whether a new thread's "worktree" in `projectRoot` comes from `createLaunchWorkspace`. */
+  readonly ownsLaunchWorkspace: (projectRoot: string) => Effect.Effect<boolean>;
+  /** Creates a new thread's workspace from `baseRef` and returns the thread's cwd in it. */
+  readonly createLaunchWorkspace: (input: {
+    readonly projectId: ProjectId;
+    readonly projectRoot: string;
+    readonly threadId: ThreadId;
+    readonly title: string;
+    readonly baseRef: string;
+    readonly startFromOrigin: boolean;
+  }) => Effect.Effect<string, VcsTurnHookError>;
+  /** Deletes a workspace from `createLaunchWorkspace` whose launch did not complete. */
+  readonly removeLaunchWorkspace: (path: string) => Effect.Effect<void, VcsTurnHookError>;
 }>("t3/orchestration-v2/VcsTurnHooks", {
   defaultValue: () => ({
     turnStarted: () => Effect.void,
@@ -69,5 +82,9 @@ export class VcsTurnHooks extends Context.Reference<{
     revertFiles: () => Effect.void,
     prepareForkWorkspace: () => Effect.succeed(null),
     mergeBackFiles: () => Effect.void,
+    ownsLaunchWorkspace: () => Effect.succeed(false),
+    createLaunchWorkspace: () =>
+      Effect.fail(new VcsTurnHookError({ detail: "This project uses Git worktrees." })),
+    removeLaunchWorkspace: () => Effect.void,
   }),
 }) {}
