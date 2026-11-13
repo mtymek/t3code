@@ -25,6 +25,7 @@ import {
   decodeJsonStrings,
   parseJjOutput,
 } from "./jjTemplateJson.ts";
+import { readCheckouts, WORKSPACE_TEMPLATE } from "./JjCheckouts.ts";
 import { loadWorkingCopyState } from "./JjWorkingCopyState.ts";
 
 const MAX_STACK_ENTRIES = 100;
@@ -124,32 +125,34 @@ const make = Effect.gen(function* () {
       const root = marker.root;
       const query = (operation: string, args: ReadonlyArray<string>) =>
         jj.read({ operation, root, args: ["--ignore-working-copy", ...args] });
-      const [operationId, stackOutput, trunkOutput, changedOutput, state] = yield* Effect.all(
-        [
-          query("JjStatusReader.operation", ["op", "log", "-n", "1", "--no-graph", "-T", "id"]),
-          query("JjStatusReader.stack", [
-            "log",
-            "--no-graph",
-            "-n",
-            String(MAX_STACK_ENTRIES),
-            "-r",
-            "trunk()..@",
-            "-T",
-            `${STACK_TEMPLATE} ++ "\\n"`,
-          ]),
-          query("JjStatusReader.trunk", [
-            "log",
-            "--no-graph",
-            "-r",
-            "trunk()",
-            "-T",
-            TRUNK_TEMPLATE,
-          ]),
-          query("JjStatusReader.changed", ["diff", "-r", "@", "-T", 'path ++ "\\0"']),
-          loadWorkingCopyState(io, root),
-        ],
-        { concurrency: "unbounded" },
-      );
+      const [operationId, stackOutput, trunkOutput, changedOutput, state, workspaces] =
+        yield* Effect.all(
+          [
+            query("JjStatusReader.operation", ["op", "log", "-n", "1", "--no-graph", "-T", "id"]),
+            query("JjStatusReader.stack", [
+              "log",
+              "--no-graph",
+              "-n",
+              String(MAX_STACK_ENTRIES),
+              "-r",
+              "trunk()..@",
+              "-T",
+              `${STACK_TEMPLATE} ++ "\\n"`,
+            ]),
+            query("JjStatusReader.trunk", [
+              "log",
+              "--no-graph",
+              "-r",
+              "trunk()",
+              "-T",
+              TRUNK_TEMPLATE,
+            ]),
+            query("JjStatusReader.changed", ["diff", "-r", "@", "-T", 'path ++ "\\0"']),
+            loadWorkingCopyState(io, root),
+            query("JjStatusReader.workspaces", ["workspace", "list", "-T", WORKSPACE_TEMPLATE]),
+          ],
+          { concurrency: "unbounded" },
+        );
       const { parsed, trunk } = yield* parseJjOutput(() => {
         const [change = "", isRoot = "", remote = "", local = ""] = trunkOutput.split("\t");
         return {
@@ -166,6 +169,7 @@ const make = Effect.gen(function* () {
         };
       });
       const changed = new Set(splitNul(changedOutput));
+      const checkouts = yield* readCheckouts(io, { marker, cwd, workspaces });
       return {
         operationId,
         trunk: trunk.isRoot
@@ -180,6 +184,7 @@ const make = Effect.gen(function* () {
           .filter(([path, owner]) => owner === null && changed.has(path))
           .map(([path]) => path)
           .toSorted(),
+        checkouts,
       } satisfies JjStatus;
     },
     (effect, cwd) =>
