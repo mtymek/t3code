@@ -37,6 +37,12 @@ How the jj patch is selected and refreshed is in [hauke-jj/README.md](hauke-jj/R
   - Based on Mathias Aerts' branch for upstream Ideas discussion [#31385](https://github.com/pingdotgg/t3code/discussions/31385). Drop this commit if upstream merges that feature.
   - Published theme files (`~/.t3/userdata/themes/`) may carry the new keys safely: builds without this patch ignore unknown roles there. A theme file imported through the editor's import does not; it is rejected.
   - `ThemeEditorPanel.tsx`'s import block is the likely conflict.
+- **New worktree in jj projects** (the `feat: New worktree in a jj project creates a jj workspace` commit).
+  - The composer bases a jj thread's workspace on the checkout's `@-`, because jj leaves no current branch (`planComposerTurn`).
+  - `ThreadLaunchService` asks `VcsTurnHooks.ownsLaunchWorkspace` and, for jj, creates and removes the workspace through `createLaunchWorkspace` and `removeLaunchWorkspace` (`JjTurnHooks`, `ManagedWorkspaces`) in place of `git worktree add`.
+  - Drop it if a Hauke sync brings his workspaces patch's launch path.
+  - Likely conflicts: `ThreadLaunchService.ts` (the worktree block in `prepareInBackground` and its failure cleanup) and `useComposerSend.ts` (the `startFromOrigin` spread).
+  - Mobile still requires a base branch for jj projects.
 
 ## Versions
 

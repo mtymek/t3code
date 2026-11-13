@@ -67,6 +67,7 @@ import { randomUuidV4 } from "@t3tools/provider-core/server/randomUuid";
 import { DispatchModeLimit } from "./DispatchModeLimit.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 import * as TaskFolders from "../workspace/TaskFolders.ts";
+import { type VcsTurnHookError, VcsTurnHooks } from "./VcsTurnHooks.ts";
 
 // The agent waits for its branch name; a rate-limited provider would hold it for minutes.
 const BRANCH_NAME_TIMEOUT = "20 seconds";
@@ -131,7 +132,7 @@ export interface ThreadLaunchInput {
 
 type PreparationInput = Pick<
   ThreadLaunchInput,
-  "commandId" | "projectId" | "workspaceStrategy" | "initialMessage" | "linkOrigin"
+  "commandId" | "projectId" | "workspaceStrategy" | "initialMessage" | "linkOrigin" | "title"
 > & {
   readonly reusedWorktree?: { readonly baseRef: string };
   /** Set when an agent asked for this run, with the thread it asked from if it has one. */
@@ -302,6 +303,7 @@ const make = Effect.gen(function* () {
     strategy.type === "root" && strategy.branch === undefined
       ? git.currentBranch(workspaceRoot).pipe(Effect.orElseSucceed(() => null))
       : Effect.succeed(strategy.branch ?? null);
+  const vcsTurnHooks = yield* VcsTurnHooks;
   const preparationScope = yield* Scope.make("sequential");
   const scheduledLaunches = yield* Ref.make<ReadonlySet<CommandId>>(new Set());
   yield* Effect.addFinalizer(() => Scope.close(preparationScope, Exit.void));
@@ -445,6 +447,7 @@ const make = Effect.gen(function* () {
     const project = Option.getOrUndefined(projectOption);
     if (project === undefined) return;
     const cwd = project.workspaceRoot;
+    if (yield* vcsTurnHooks.ownsLaunchWorkspace(cwd)) return;
     const taskPlan = yield* taskFolders.plan({
       projectId: project.id,
       repositories: strategy.repositories,
@@ -600,6 +603,10 @@ const make = Effect.gen(function* () {
       ),
     );
 
+    // jj projects get a jj workspace in place of a Git worktree (patches/jujutsu.md).
+    const vcsWorkspace =
+      input.workspaceStrategy.type === "worktree" &&
+      (yield* vcsTurnHooks.ownsLaunchWorkspace(project.workspaceRoot));
     const reused = input.reusedWorktree;
     const tracked = input.workspaceStrategy.type === "worktree" || reused !== undefined;
     let createdWorktreePath: string | null = null;
@@ -703,6 +710,39 @@ const make = Effect.gen(function* () {
         input.workspaceStrategy.type === "existing_worktree"
           ? input.workspaceStrategy.worktreePath
           : null;
+      if (input.workspaceStrategy.type === "worktree" && vcsWorkspace) {
+        if (runId !== null) {
+          yield* threads
+            .dispatch({
+              type: "prepared-run.progress",
+              commandId: CommandId.make(`${input.commandId}:progress:worktree`),
+              threadId,
+              runId,
+              phase: "worktree",
+            })
+            .pipe(Effect.mapError(mapError(input, "update-thread", threadId)));
+        }
+        branch = null;
+        yield* setupTracker.stageStatus(threadId, "fetch", "skipped");
+        yield* setupTracker.stageStatus(threadId, "checkout", "running");
+        worktreePath = yield* vcsTurnHooks
+          .createLaunchWorkspace({
+            projectId: input.projectId,
+            projectRoot: project.workspaceRoot,
+            threadId,
+            title: input.title,
+            baseRef: input.workspaceStrategy.baseRef,
+            startFromOrigin: input.workspaceStrategy.startFromOrigin === true,
+          })
+          .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
+        createdWorktreePath = worktreePath;
+        yield* setupTracker.update(threadId, (snapshot) => ({
+          ...snapshot,
+          worktreePath,
+          branch: null,
+        }));
+        yield* setupTracker.stageStatus(threadId, "checkout", "done");
+      }
       // The agent waits for this LLM call; start it now so it overlaps fetch, checkout and setup.
       const branchName =
         reused === undefined &&
@@ -716,7 +756,7 @@ const make = Effect.gen(function* () {
             ).pipe(Effect.forkIn(preparationScope))
           : null;
       if (branchName !== null) stopBranchName = Fiber.interrupt(branchName);
-      if (input.workspaceStrategy.type === "worktree") {
+      if (input.workspaceStrategy.type === "worktree" && !vcsWorkspace) {
         const taskPlan = yield* taskFolders
           .plan({ projectId: project.id, repositories: input.workspaceStrategy.repositories })
           .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId)));
@@ -1197,11 +1237,17 @@ const make = Effect.gen(function* () {
             const removedBranch = createdBranch;
             const removedTaskFolder = createdTaskFolder;
             // Forget worktrees only after removal succeeds; failed removals must not reuse partially written checkouts.
-            yield* Effect.suspend((): Effect.Effect<void, GitCommandError | TaskFolderError> =>
+            const removeWorkspace: Effect.Effect<void, GitCommandError | VcsTurnHookError> =
+              vcsWorkspace
+                ? vcsTurnHooks.removeLaunchWorkspace(removedPath)
+                : git.removeWorktree({
+                    cwd: project.workspaceRoot,
+                    path: removedPath,
+                    force: true,
+                  });
+            yield* Effect.suspend((): Effect.Effect<void, GitCommandError | TaskFolderError | VcsTurnHookError> =>
               removedTaskFolder === null
-                ? git
-                    .removeWorktree({ cwd: project.workspaceRoot, path: removedPath, force: true })
-                    .pipe(
+                ? removeWorkspace.pipe(
                       Effect.andThen(
                         removedBranch === null
                           ? Effect.void
@@ -1763,12 +1809,13 @@ const make = Effect.gen(function* () {
     const reuse =
       workspacePreparation.type === "worktree" &&
       thread.worktreePath !== null &&
-      thread.branch !== null
+      // A jj workspace has no branch.
+      (thread.branch !== null || (yield* vcsTurnHooks.ownsLaunchWorkspace(thread.worktreePath)))
         ? {
             strategy: {
               type: "existing_worktree" as const,
               worktreePath: thread.worktreePath,
-              branch: thread.branch,
+              ...(thread.branch === null ? {} : { branch: thread.branch }),
             },
             reusedWorktree: { baseRef: workspacePreparation.baseRef },
           }
@@ -1777,6 +1824,7 @@ const make = Effect.gen(function* () {
       {
         commandId: input.commandId,
         projectId: thread.projectId,
+        title: thread.title,
         workspaceStrategy: reuse?.strategy ?? workspacePreparation,
         ...(thread.linkOrigin === undefined ? {} : { linkOrigin: thread.linkOrigin }),
         ...askedByAgent(thread, message),

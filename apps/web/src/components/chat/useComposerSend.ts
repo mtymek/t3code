@@ -30,6 +30,7 @@ import {
   type ScopedThreadRef,
   type ThreadContextRecord,
   type ThreadId,
+  type VcsDriverKind,
   ProviderInteractionMode,
   RuntimeMode,
 } from "@t3tools/contracts";
@@ -208,6 +209,7 @@ interface ComposerSendInput {
   readonly activeThread: EnvironmentThreadShell | undefined;
   readonly activeThreadKey: string | null;
   readonly activeThreadBranch: string | null;
+  readonly vcsKind: VcsDriverKind | undefined;
   readonly activeProject: EnvironmentProject | null;
   readonly activeProjectIsScratch: boolean;
   readonly activeProjectDefaultModelSelection: ModelSelection | null;
@@ -311,6 +313,7 @@ export function useComposerSend(input: ComposerSendInput) {
     activeThread,
     activeThreadKey,
     activeThreadBranch,
+    vcsKind,
     activeProject,
     activeProjectIsScratch,
     activeProjectDefaultModelSelection,
@@ -1025,6 +1028,7 @@ export function useComposerSend(input: ComposerSendInput) {
       projectIsGitRepo: isGitRepo,
       plainProjectBaseBranch: readWorktreeBaseBranch(activeProject),
       isScratchProject: activeProjectIsScratch,
+      vcsKind,
       resumeCompactionTokens,
       keepFullHistory,
       phase,
@@ -1554,7 +1558,10 @@ export function useComposerSend(input: ComposerSendInput) {
                     prepareWorktree: {
                       projectCwd: activeProject.workspaceRoot,
                       baseBranch: baseBranchForWorktree,
-                      ...(startFromOrigin ? { startFromOrigin: true } : {}),
+                      // jj's `@-` base names no remote branch to start from.
+                      ...(startFromOrigin && activeThreadBranch !== null
+                        ? { startFromOrigin: true }
+                        : {}),
                       ...(worktreeRepositories ? { repositories: worktreeRepositories } : {}),
                     },
                     runSetupScript: true,
