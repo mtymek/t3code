@@ -1,6 +1,7 @@
 import {
   EnvironmentId,
   GitCommandError,
+  type JjCheckout,
   ProviderInstanceId,
   RunId,
   type VcsRef,
@@ -11,6 +12,7 @@ import {
   deriveLocalBranchNameFromRemoteRef,
   isWorktreeChangeBlocked,
   resolveBranchSelectionTarget,
+  resolveCheckoutOptions,
   resolveDraftEnvModeAfterBranchChange,
   resolveEffectiveEnvMode,
   resolveBranchToolbarPrBranch,
@@ -18,6 +20,7 @@ import {
   resolveDefaultWorktreeBaseBranch,
   resolveLocalCheckoutBranchMismatch,
   resolveLockedWorkspaceLabel,
+  resolveSelectedCheckout,
   sanitizeNewRefName,
   shouldIncludeBranchPickerItem,
   isBranchHoldCurrent,
@@ -38,6 +41,42 @@ describe("toBranchActionErrorMessage", () => {
       "Commit, stash, or discard them, then switch again.",
     );
     expect(toBranchActionErrorMessage(new Error("boom"))).toBe("boom");
+  });
+});
+
+describe("resolveCheckoutOptions", () => {
+  const checkout = (name: string, cwd: string, extra: Partial<JjCheckout> = {}): JjCheckout => ({
+    name,
+    kind: "jj",
+    cwd,
+    current: false,
+    changeId: "abcd1234",
+    description: "",
+    empty: true,
+    ...extra,
+  });
+  const options = resolveCheckoutOptions([
+    checkout("feature", "/repo-feature", { description: "wip: feature", empty: false }),
+    checkout("default", "/repo", { current: true }),
+    checkout("plain", "/repo-plain", { kind: "git", changeId: null }),
+  ])!;
+
+  it("lists the project's checkout first and labels the others by name", () => {
+    expect(options.map(({ label, detail }) => ({ label, detail }))).toEqual([
+      { label: "Current checkout", detail: "default" },
+      { label: "feature", detail: "wip: feature" },
+      { label: "plain", detail: "Git worktree" },
+    ]);
+    expect(resolveCheckoutOptions([])).toBeNull();
+    expect(resolveCheckoutOptions(undefined)).toBeNull();
+  });
+
+  it("selects the draft's checkout, the project's checkout, or nothing in New worktree mode", () => {
+    const select = (effectiveEnvMode: "local" | "worktree", activeWorktreePath: string | null) =>
+      resolveSelectedCheckout({ options, effectiveEnvMode, activeWorktreePath })?.label;
+    expect(select("local", "/repo-plain")).toBe("plain");
+    expect(select("local", null)).toBe("Current checkout");
+    expect(select("worktree", null)).toBeUndefined();
   });
 });
 
