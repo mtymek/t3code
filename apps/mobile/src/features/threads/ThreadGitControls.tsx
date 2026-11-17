@@ -26,6 +26,7 @@ import {
   type TerminalMenuSession,
 } from "../terminal/terminalMenu";
 import { projectScriptMenuLabel } from "@t3tools/shared/projectScripts";
+import { jjBreadcrumb, jjPushState, jjStackViewFromStatus } from "./git/jj-stack-presentation";
 
 function truncateMiddle(value: string, maxLength: number): string {
   if (value.length <= maxLength) {
@@ -113,7 +114,12 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
   const threadId = props.threadId;
   const { gitStatus, gitOperationLabel, onPull, onRunAction } = props;
 
-  const currentBranchLabel = gitStatus?.refName ?? props.currentBranch ?? "Detached HEAD";
+  // A jj workspace swaps the branch label and the git overview for its stack.
+  const jjStack = jjStackViewFromStatus(gitStatus, String(threadId));
+  const statusTitle = jjStack
+    ? jjBreadcrumb(jjStack)
+    : compactMenuBranchLabel(gitStatus?.refName ?? props.currentBranch ?? "Detached HEAD");
+  const statusSubtitle = jjStack ? jjPushState(jjStack) : compactMenuStatus(gitStatus);
   const busy = gitOperationLabel !== null;
   const isRepo = gitStatus?.isRepo ?? true;
   const hasPrimaryRemote = gitStatus?.hasPrimaryRemote ?? false;
@@ -225,7 +231,15 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
     });
   };
 
+  const isJj = jjStack !== null;
   const openGitInspector = () => {
+    if (isJj) {
+      navigation.navigate("JjStack", {
+        environmentId: String(environmentId),
+        threadId: String(threadId),
+      });
+      return;
+    }
     if (props.onOpenGitInspector) {
       props.onOpenGitInspector();
       return;
@@ -237,7 +251,7 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
   };
 
   return {
-    currentBranchLabel,
+    isJj,
     isRepo,
     openGitInspector,
     openReview,
@@ -245,6 +259,8 @@ function useThreadGitControlModel(props: ThreadGitMenuProps) {
     quickActionHint,
     quickActionIcon,
     runQuickAction,
+    statusSubtitle,
+    statusTitle,
   };
 }
 
@@ -311,22 +327,27 @@ export function useThreadGitMenuDefinition(props: ThreadGitMenuProps): AppBarMen
     items: [
       {
         id: "git-status",
-        title: compactMenuBranchLabel(model.currentBranchLabel),
+        title: model.statusTitle,
         icon: "point.topleft.down.curvedto.point.bottomright.up",
         disabled: true,
-        subtitle: compactMenuStatus(props.gitStatus),
+        subtitle: model.statusSubtitle,
         onPress: () => {},
       },
-      {
-        id: "git-quick-action",
-        title: model.quickAction.label,
-        icon: model.quickActionIcon,
-        disabled: model.quickAction.disabled,
-        subtitle: model.quickActionHint ?? undefined,
-        onPress: () => {
-          void model.runQuickAction();
-        },
-      },
+      // The quick action runs Git's stacked actions, which do not apply to a jj stack.
+      ...(model.isJj
+        ? []
+        : [
+            {
+              id: "git-quick-action",
+              title: model.quickAction.label,
+              icon: model.quickActionIcon,
+              disabled: model.quickAction.disabled,
+              subtitle: model.quickActionHint ?? undefined,
+              onPress: () => {
+                void model.runQuickAction();
+              },
+            },
+          ]),
       {
         id: "git-review",
         title: "Review changes",

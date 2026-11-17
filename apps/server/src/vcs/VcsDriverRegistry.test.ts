@@ -8,6 +8,7 @@ import * as Path from "effect/Path";
 import { ChildProcessSpawner } from "effect/process";
 import { VcsProcessExitError } from "@t3tools/contracts";
 
+import * as JjCli from "./JjCli.ts";
 import * as VcsProcess from "./VcsProcess.ts";
 import * as VcsProjectConfig from "./VcsProjectConfig.ts";
 import * as VcsDriverRegistry from "./VcsDriverRegistry.ts";
@@ -28,6 +29,7 @@ const DETECT_COMMAND = "rev-parse --is-inside-work-tree --show-toplevel --git-co
 describe("VcsDriverRegistry", () => {
   const makeDiskBackedLayer = (rootDir: string, calls: string[]) =>
     Layer.effect(VcsDriverRegistry.VcsDriverRegistry, VcsDriverRegistry.make).pipe(
+      Layer.provide(JjCli.layer),
       Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
       Layer.provide(
         Layer.mock(VcsProjectConfig.VcsProjectConfig)({

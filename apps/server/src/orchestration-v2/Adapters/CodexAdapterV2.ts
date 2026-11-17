@@ -149,6 +149,7 @@ import {
   PROVIDER_RETRY_BUDGET_MS,
 } from "@t3tools/provider-core/server/failure";
 import { turnScopedSelectionTransition } from "@t3tools/provider-core/server/selectionTransition";
+import { ProviderThreadEnvironment } from "@t3tools/provider-core/server/threadEnvironment";
 import {
   isProviderNativeImageAttachment,
   providerMessageTextWithAttachmentPaths,
@@ -1352,6 +1353,7 @@ function codexRetryTurnItem(
 interface TrackedRunningCommandItem {
   readonly id: string;
   readonly command: string;
+  readonly cwd: string;
   readonly aggregatedOutput?: string;
   readonly processId?: string;
 }
@@ -1508,6 +1510,7 @@ function codexThreadRuntimeParams(input: {
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly modelSelection?: { readonly model: string };
   readonly runtimePolicy?: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
+  readonly threadEnvironment?: Readonly<Record<string, string>>;
 }): {
   readonly cwd?: string;
   readonly model?: string;
@@ -1527,6 +1530,14 @@ function codexThreadRuntimeParams(input: {
     ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
     config: {
       ...CODEX_THREAD_CONFIG,
+      // The app-server process may serve several threads, so the thread's
+      // environment goes to its shell commands through config, not the process.
+      ...Object.fromEntries(
+        Object.entries(input.threadEnvironment ?? {}).map(([name, value]) => [
+          `shell_environment_policy.set.${name}`,
+          value,
+        ]),
+      ),
       // One app-server serves many threads, so the id goes in per-thread shell config, not its env.
       ...(input.threadId === null
         ? {}
@@ -1939,6 +1950,23 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     }),
                 ),
               );
+        const resolveThreadRuntimeParams = Effect.fn("CodexAdapterV2.resolveThreadRuntimeParams")(
+          function* (
+            params: Omit<
+              Parameters<typeof codexThreadRuntimeParams>[0],
+              "mcpSession" | "threadEnvironment"
+            >,
+          ) {
+            return codexThreadRuntimeParams({
+              ...params,
+              mcpSession: yield* readMcpSession(params.threadId),
+              threadEnvironment:
+                params.threadId === null
+                  ? {}
+                  : yield* (yield* ProviderThreadEnvironment).forThread(params.threadId),
+            });
+          },
+        );
         const client = yield* clientFactory.open({
           instanceId: adapterOptions.instanceId,
           threadId: input.threadId,
@@ -2767,6 +2795,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               updatedAt: completedAt,
               type: "command_execution",
               input: tracked.command,
+              cwd: tracked.cwd,
               ...(tracked.aggregatedOutput === undefined
                 ? {}
                 : { output: tracked.aggregatedOutput }),
@@ -4059,6 +4088,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             updatedAt,
             type: "command_execution",
             input: item.command,
+            cwd: item.cwd,
             ...(item.aggregatedOutput === null || item.aggregatedOutput === undefined
               ? {}
               : { output: item.aggregatedOutput }),
@@ -5432,6 +5462,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 yield* trackRunningCommandItem(payload.turnId, {
                   id: payload.item.id,
                   command: payload.item.command,
+                  cwd: payload.item.cwd,
                   ...(payload.item.aggregatedOutput === null ||
                   payload.item.aggregatedOutput === undefined
                     ? {}
@@ -7901,15 +7932,16 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           }),
           ensureThread: (threadInput) =>
             ensureInitialized.pipe(
-              Effect.andThen(mcpSessions.read(threadInput.threadId)),
-              Effect.flatMap((mcpSession) =>
+              Effect.andThen(
+                resolveThreadRuntimeParams({
+                  threadId: threadInput.threadId,
+                  modelSelection: threadInput.modelSelection,
+                  runtimePolicy: threadInput.runtimePolicy,
+                }),
+              ),
+              Effect.flatMap((params) =>
                 client.request("thread/start", {
-                  ...codexThreadRuntimeParams({
-                    threadId: threadInput.threadId,
-                    mcpSession,
-                    modelSelection: threadInput.modelSelection,
-                    runtimePolicy: threadInput.runtimePolicy,
-                  }),
+                  ...params,
                   // Codex tags the child's MCP calls with thread_source "subagent".
                   ...(IdAllocator.isDelegatedTaskThread(threadInput.threadId)
                     ? { threadSource: "subagent" }
@@ -7941,16 +7973,15 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               const appThreadId = threadInput.threadId ?? threadInput.providerThread.appThreadId;
               const resume = resumeNativeThread(nativeThreadId, {
                 excludeTurns: true,
-                ...codexThreadRuntimeParams({
+                ...(yield* resolveThreadRuntimeParams({
                   threadId: appThreadId,
-                  mcpSession: yield* readMcpSession(appThreadId),
                   ...(threadInput.modelSelection === undefined
                     ? {}
                     : { modelSelection: threadInput.modelSelection }),
                   ...(threadInput.runtimePolicy === undefined
                     ? {}
                     : { runtimePolicy: threadInput.runtimePolicy }),
-                }),
+                })),
               });
               const response = yield* ensureInitialized.pipe(
                 Effect.andThen(resume),
@@ -8775,12 +8806,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               if (!loaded) {
                 yield* resumeNativeThread(threadId, {
                   excludeTurns: true,
-                  ...codexThreadRuntimeParams({
+                  ...(yield* resolveThreadRuntimeParams({
                     threadId: threadInput.providerThread.appThreadId,
-                    mcpSession: yield* readMcpSession(threadInput.providerThread.appThreadId),
                     modelSelection: input.modelSelection,
                     runtimePolicy: input.runtimePolicy,
-                  }),
+                  })),
                 });
               }
               const response = yield* ensureInitialized.pipe(
@@ -8821,20 +8851,20 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             function* (threadInput) {
               const threadId = yield* getNativeThreadId(threadInput.sourceProviderThread);
               const boundary = yield* resolveCodexForkBoundary(threadInput);
+              const params = yield* resolveThreadRuntimeParams({
+                threadId: threadInput.targetThreadId,
+                ...(threadInput.modelSelection === undefined
+                  ? {}
+                  : { modelSelection: threadInput.modelSelection }),
+                ...(threadInput.runtimePolicy === undefined
+                  ? {}
+                  : { runtimePolicy: threadInput.runtimePolicy }),
+              });
               const fork = client.request("thread/fork", {
                 threadId,
                 excludeTurns: true,
                 ...(boundary.lastTurnId === undefined ? {} : { lastTurnId: boundary.lastTurnId }),
-                ...codexThreadRuntimeParams({
-                  threadId: threadInput.targetThreadId,
-                  mcpSession: yield* mcpSessions.read(threadInput.targetThreadId),
-                  ...(threadInput.modelSelection === undefined
-                    ? {}
-                    : { modelSelection: threadInput.modelSelection }),
-                  ...(threadInput.runtimePolicy === undefined
-                    ? {}
-                    : { runtimePolicy: threadInput.runtimePolicy }),
-                }),
+                ...params,
               });
               const response = yield* ensureInitialized.pipe(
                 Effect.andThen(

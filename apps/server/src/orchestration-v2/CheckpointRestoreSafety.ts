@@ -5,11 +5,13 @@ import * as Option from "effect/Option";
 import type * as Path from "effect/Path";
 import type { ProjectionStoreV2 } from "./ProjectionStore.ts";
 import type * as ProjectStore from "./ProjectStore.ts";
+import { VcsTurnHooks } from "./VcsTurnHooks.ts";
 
 export const SHARED_WORKSPACE_RESTORE_MESSAGE =
   "File restore requires an isolated worktree. This workspace may contain changes from another thread or a side chat. Rewind the conversation without restoring files instead, or delete side chats you no longer need.";
 
 // Check isolation at admission and rollback; checkpoints restore whole checkouts, which may become shared.
+// A jj working copy reverts per thread instead, so sharing it is fine.
 export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpointRestoreIsolated")(
   function* (
     thread: Pick<OrchestrationV2AppThread, "id" | "worktreePath">,
@@ -22,6 +24,8 @@ export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpoi
     },
   ) {
     const { fileSystem, projections, projects, path } = dependencies;
+    const vcsTurnHooks = yield* VcsTurnHooks;
+    if (yield* vcsTurnHooks.ownsFileRevert(scope.cwd)) return true;
     const contains = (parent: string, child: string) => {
       const relative = path.relative(parent, child);
       return (

@@ -29,6 +29,7 @@ import { GitCommandError, GitManagerError } from "@t3tools/contracts";
 import { applyGitStatusStreamEvent } from "@t3tools/shared/git";
 
 import * as VcsAutomaticFetchInterval from "./VcsAutomaticFetchInterval.ts";
+import * as JjStatusReader from "../jj/JjStatusReader.ts";
 import * as VcsStatusBroadcaster from "./VcsStatusBroadcaster.ts";
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
@@ -69,6 +70,16 @@ const remoteStatusWithPr: VcsStatusRemoteResult = {
   },
 };
 
+// These cases cover Git repositories; jj status is the reader's own test.
+const layerBroadcaster = VcsStatusBroadcaster.layer.pipe(
+  Layer.provide(
+    Layer.mock(JjStatusReader.JjStatusReader)({
+      localStatus: (_cwd, gitStatus) => gitStatus,
+      isJjWithoutGit: () => Effect.succeed(false),
+    }),
+  ),
+);
+
 function layerTestFor(state: {
   currentLocalStatus: VcsStatusLocalResult;
   currentRemoteStatus: VcsStatusRemoteResult | null;
@@ -95,7 +106,7 @@ function layerTestFor(state: {
   failLocalStatus?: boolean;
   onLocalStatusFailure?: Effect.Effect<void>;
 }) {
-  return VcsStatusBroadcaster.layer.pipe(
+  return layerBroadcaster.pipe(
     Layer.provideMerge(
       state.fileSystem
         ? Layer.merge(Layer.succeed(FileSystem.FileSystem, state.fileSystem), Path.layer)
@@ -221,6 +232,53 @@ function layerBackgroundPolicy(shouldRunScopeWork: (scope: BackgroundScope) => b
 }
 
 describe("VcsStatusBroadcaster", () => {
+  it.effect("reads a jj checkout without Git without asking Git for its branch", () => {
+    const gitOnly = Effect.die("a jj checkout without Git must not reach Git");
+    const jjLocal: VcsStatusLocalResult = { ...baseLocalStatus, refName: null };
+    return Effect.gen(function* () {
+      const broadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
+      const status = yield* broadcaster.getStatus({ cwd: "/jj-repo" });
+      assert.isNull(status.refName);
+      assert.isFalse(status.hasUpstream);
+      yield* broadcaster.refreshBranchStatus({ cwd: "/jj-repo" });
+    }).pipe(
+      Effect.provide(
+        VcsStatusBroadcaster.layer.pipe(
+          Layer.provideMerge(
+            Layer.succeed(
+              FileSystem.FileSystem,
+              FileSystem.makeNoop({ realPath: (cwd) => Effect.succeed(cwd) }),
+            ),
+          ),
+          Layer.provide(layerBackgroundPolicy(() => true)),
+          Layer.provide(
+            Layer.succeed(
+              VcsStatusBroadcaster.VcsAutomaticFetchInterval,
+              Effect.succeed(Duration.seconds(30)),
+            ),
+          ),
+          Layer.provide(
+            Layer.mock(JjStatusReader.JjStatusReader)({
+              localStatus: () => Effect.succeed(jjLocal),
+              isJjWithoutGit: () => Effect.succeed(true),
+            }),
+          ),
+          Layer.provide(
+            Layer.mock(GitWorkflowService.GitWorkflowService)({
+              localStatus: () => gitOnly,
+              currentBranch: () => gitOnly,
+              remoteStatus: () => gitOnly,
+              invalidateLocalStatus: () => Effect.void,
+              invalidateRemoteStatus: () => Effect.void,
+              invalidateStatus: () => Effect.void,
+            }),
+          ),
+        ),
+      ),
+      Effect.scoped,
+    );
+  });
+
   it.effect("refreshes queued behind a running one share the next git status read", () => {
     const state: Parameters<typeof layerTestFor>[0] = {
       currentLocalStatus: baseLocalStatus,
@@ -744,7 +802,7 @@ describe("VcsStatusBroadcaster", () => {
         isDefaultRef: true,
         refName: "main",
       };
-      const layerTest = VcsStatusBroadcaster.layer.pipe(
+      const layerTest = layerBroadcaster.pipe(
         Layer.provideMerge(NodeServices.layer),
         Layer.provide(layerBackgroundPolicy(() => true)),
         Layer.provide(
@@ -846,7 +904,7 @@ describe("VcsStatusBroadcaster", () => {
     const releaseFirstPoll = Deferred.makeUnsafe<void>();
     const firstPollStarted = Deferred.makeUnsafe<void>();
     let remoteReads = 0;
-    const layer = VcsStatusBroadcaster.layer.pipe(
+    const layer = layerBroadcaster.pipe(
       Layer.provideMerge(NodeServices.layer),
       Layer.provide(layerBackgroundPolicy(() => true)),
       Layer.provide(
@@ -892,7 +950,7 @@ describe("VcsStatusBroadcaster", () => {
     const firstReadStarted = Deferred.makeUnsafe<void>();
     const releaseFirstRead = Deferred.makeUnsafe<void>();
     let remoteReads = 0;
-    const layer = VcsStatusBroadcaster.layer.pipe(
+    const layer = layerBroadcaster.pipe(
       Layer.provide(FileSystem.layerNoop({ realPath: (path) => Effect.succeed(path) })),
       Layer.provideMerge(NodeServices.layer),
       Layer.provide(layerBackgroundPolicy(() => true)),
@@ -943,7 +1001,7 @@ describe("VcsStatusBroadcaster", () => {
       remoteInvalidationCalls: 0,
       failRemoteStatus: false,
     };
-    const layerTest = VcsStatusBroadcaster.layer.pipe(
+    const layerTest = layerBroadcaster.pipe(
       Layer.provideMerge(NodeServices.layer),
       Layer.provide(layerBackgroundPolicy(() => true)),
       Layer.provide(
@@ -1027,7 +1085,7 @@ describe("VcsStatusBroadcaster", () => {
         localInvalidationCalls: 0,
         remoteInvalidationCalls: 0,
       };
-      const layerTest = VcsStatusBroadcaster.layer.pipe(
+      const layerTest = layerBroadcaster.pipe(
         Layer.provideMerge(NodeServices.layer),
         Layer.provide(layerBackgroundPolicy(() => true)),
         Layer.provide(
@@ -1284,7 +1342,7 @@ describe("VcsStatusBroadcaster", () => {
       let cachedLocal: VcsStatusLocalResult | undefined;
       let refSnapshot = "before";
       const readLocalStatus = () => Effect.sync(() => (cachedLocal ??= local));
-      const layerTest = VcsStatusBroadcaster.layer.pipe(
+      const layerTest = layerBroadcaster.pipe(
         Layer.provideMerge(NodeServices.layer),
         Layer.provide(layerBackgroundPolicy(() => true)),
         Layer.provide(
@@ -1978,7 +2036,7 @@ describe("VcsStatusBroadcaster", () => {
     };
     let remoteInterruptedDeferred: Deferred.Deferred<void, never> | null = null;
     let remoteStartedDeferred: Deferred.Deferred<void, never> | null = null;
-    const layerTest = VcsStatusBroadcaster.layer.pipe(
+    const layerTest = layerBroadcaster.pipe(
       Layer.provideMerge(NodeServices.layer),
       Layer.provide(layerBackgroundPolicy(() => true)),
       Layer.provide(

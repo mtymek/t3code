@@ -117,7 +117,7 @@ it.layer(layerTest)("CheckpointStore.layer", (it) => {
       const nested = NodePath.join(tmp, "packages", "nested");
       yield* fileSystem.makeDirectory(nested, { recursive: true });
       const checkpointStore = yield* CheckpointStore.CheckpointStore;
-      expect(yield* checkpointStore.isGitRepository(nested)).toBe(true);
+      expect(yield* checkpointStore.isCheckpointable(nested)).toBe(true);
     }),
   );
   it.effect("fails the repository probe that other callers read as no repository", () =>
@@ -129,7 +129,7 @@ it.layer(layerTest)("CheckpointStore.layer", (it) => {
       const checkpointStore = yield* CheckpointStore.CheckpointStore;
 
       expect(yield* registry.detect({ cwd: tmp })).toBeNull();
-      const probe = yield* Effect.flip(checkpointStore.isGitRepository(tmp));
+      const probe = yield* Effect.flip(checkpointStore.isCheckpointable(tmp));
       expect(probe._tag).toBe("VcsProcessExitError");
     }),
   );
