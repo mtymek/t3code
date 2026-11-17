@@ -215,7 +215,7 @@ const directoryModels = (directory: string): ReadonlyArray<ProviderReplayEntry> 
 ];
 
 const bigPickle: ModelSelection = { instanceId, model: "opencode/big-pickle" };
-const policy = (runtimeMode: "full-access" | "approval-required" = "full-access") => ({
+const policy = (runtimeMode: "full-access" | "approval-required" | "auto" = "full-access") => ({
   runtimeMode,
   interactionMode: "default" as const,
   cwd: WORK,
@@ -3362,6 +3362,66 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         .pipe(Effect.forkScoped);
       yield* TestClock.adjust("250 millis");
       assert.equal((yield* Fiber.join(created)).nativeThreadRef?.nativeId, SESSION);
+    }),
+  );
+
+  it.effect("applies the agent's configured rules after the asks in Auto", () =>
+    Effect.gen(function* () {
+      const configured = [
+        { action: "shell", resource: "*", effect: "allow" },
+        { action: "shell", resource: "git push *", effect: "ask" },
+        { action: "edit", resource: "*", effect: "allow" },
+        ...buildPaths,
+      ];
+      const autoRules = [...supervisedRules.slice(0, 3), ...configured, ...buildPaths, ...mcpRules];
+      const runtime = yield* openCode2ReplayRuntime([
+        ...opening,
+        out("agent.list", "<any>"),
+        reply("agent.list", {
+          ...agentList,
+          data: [
+            {
+              ...agentList.data[0],
+              permissions: [{ action: "*", resource: "*", effect: "allow" }, ...configured],
+            },
+          ],
+        }),
+        out("session.create", {
+          location: { directory: WORK },
+          model: { providerID: "opencode", id: "big-pickle" },
+          permissions: autoRules,
+        }),
+        replyData("session.create", sessionInfo({ permissions: autoRules })),
+      ]);
+      const created = yield* runtime.ensureThread({
+        threadId,
+        modelSelection: bigPickle,
+        runtimePolicy: policy("auto"),
+      });
+      assert.equal(created.nativeThreadRef?.nativeId, SESSION);
+    }),
+  );
+
+  it.effect("keeps asking in Auto when the agent has only a catch-all rule", () =>
+    Effect.gen(function* () {
+      const autoRules = [...supervisedRules.slice(0, 3), ...buildPaths, ...buildPaths, ...mcpRules];
+      const runtime = yield* openCode2ReplayRuntime([
+        ...opening,
+        out("agent.list", "<any>"),
+        reply("agent.list", agentList),
+        out("session.create", {
+          location: { directory: WORK },
+          model: { providerID: "opencode", id: "big-pickle" },
+          permissions: autoRules,
+        }),
+        replyData("session.create", sessionInfo({ permissions: autoRules })),
+      ]);
+      const created = yield* runtime.ensureThread({
+        threadId,
+        modelSelection: bigPickle,
+        runtimePolicy: policy("auto"),
+      });
+      assert.equal(created.nativeThreadRef?.nativeId, SESSION);
     }),
   );
   const reconnected = (
