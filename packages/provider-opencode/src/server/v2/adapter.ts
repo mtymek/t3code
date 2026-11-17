@@ -438,6 +438,7 @@ const mcpRules = (mcpServerName: string | null): ReadonlyArray<Rule> =>
 
 const sessionRules = (
   policy: RulesPolicy,
+  configured: ReadonlyArray<Rule>,
   paths: ReadonlyArray<Rule>,
   grants: ReadonlyArray<Rule>,
   mcpServerName: string | null,
@@ -449,6 +450,8 @@ const sessionRules = (
         rule("edit", policy.runtimeMode === "auto-accept-edits" ? "allow" : "ask"),
         rule("external_directory", "ask"),
       ]),
+  // Auto only: the agent's own action-specific rules win over the asks above.
+  ...configured,
   ...grants,
   // Plan edits are re-allowed only for plan paths; free-tier sessions refuse denied shell/read.
   ...(policy.interactionMode === "plan" ? [rule("edit", "deny")] : []),
@@ -544,6 +547,10 @@ const agentPaths = (rules: ReadonlyArray<Rule>) =>
       entry.resource !== "*" &&
       (entry.action === "edit" || entry.action === "external_directory"),
   );
+
+// Order is kept: OpenCode resolves permissions by last match.
+const agentConfigured = (rules: ReadonlyArray<Rule>) =>
+  rules.filter((entry) => entry.action !== "*");
 
 const ref = (nativeId: string, strength: "strong" | "weak" = "strong") => ({
   driver: OPENCODE_PROVIDER,
@@ -3909,10 +3916,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
     yield* readModels(session.cwd);
 
     const agentRules = new Map<string, ReadonlyMap<string, ReadonlyArray<Rule>>>();
-    const pathsFor = Effect.fnUntraced(function* (
-      directory: string,
-      agents: ReadonlyArray<string>,
-    ) {
+    const agentRulesFor = Effect.fnUntraced(function* (directory: string) {
       let known = agentRules.get(directory);
       if (known === undefined) {
         // A fresh server lists no agents for its first moments, like its models.
@@ -3930,19 +3934,32 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           ),
           Effect.option,
         );
-        if (listed._tag === "None") return [];
-        known = new Map(
-          listed.value.data.map((agent) => [agent.id, agentPaths(agent.permissions)]),
-        );
+        if (listed._tag === "None") return undefined;
+        known = new Map(listed.value.data.map((agent) => [agent.id, agent.permissions]));
         agentRules.set(directory, known);
       }
+      return known;
+    });
+    const pathsFor = Effect.fnUntraced(function* (
+      directory: string,
+      agents: ReadonlyArray<string>,
+    ) {
+      const known = yield* agentRulesFor(directory);
+      if (known === undefined) return [];
       const paths = new Map<string, Rule>();
       for (const agent of agents) {
-        for (const entry of known.get(agent) ?? []) {
+        for (const entry of agentPaths(known.get(agent) ?? [])) {
           paths.set(`${entry.action}\u0000${entry.resource}`, entry);
         }
       }
       return [...paths.values()];
+    });
+    // Fork patch: Auto re-applies the agent's action-specific rules (the user's OpenCode
+    // `permission` config) after T3's asks. Catch-all `*` rules stay out, so an agent
+    // without a config still asks like Supervised.
+    const configuredFor = Effect.fnUntraced(function* (directory: string, agent: string) {
+      const known = yield* agentRulesFor(directory);
+      return agentConfigured(known?.get(agent) ?? []);
     });
 
     const rulesFor = Effect.fnUntraced(function* (
@@ -3955,8 +3972,11 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         policy.runtimeMode === "full-access" && !plan
           ? []
           : yield* pathsFor(thread.directory, plan ? [thread.agent, "plan"] : [thread.agent]);
+      const configured =
+        policy.runtimeMode === "auto" ? yield* configuredFor(thread.directory, thread.agent) : [];
       return sessionRules(
         policy,
+        configured,
         paths,
         policy.runtimeMode === "full-access" ? [] : thread.grants,
         appThreadId === null ? null : yield* mcpServerNameFor(appThreadId),

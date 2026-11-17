@@ -60,6 +60,11 @@ How the jj patch is selected and refreshed is in [hauke-jj/README.md](hauke-jj/R
   - Likely conflicts: the Workspace menu groups in those two files.
   - Unsupported on mobile.
 
+- **OpenCode Auto applies the agent's permission rules** (the `fix(opencode): Auto applies the agent's own OpenCode permission rules` commit).
+  - In Auto, `sessionRules` in `packages/provider-opencode/src/server/v2/adapter.ts` appends the agent's action-specific rules (from `opencode.json` `permission`) after T3's `shell`/`edit`/`external_directory` asks. Catch-all `*` rules are skipped, so Auto without a config still asks like Supervised.
+  - Upstream tracks this as [#11458](https://github.com/pingdotgg/t3code/issues/11458); [#30438](https://github.com/pingdotgg/t3code/pull/30438) is a fuller fix that also keeps native denies in Full access. Drop this commit if upstream merges either.
+  - Likely conflicts: `sessionRules` and `pathsFor`/`rulesFor` in that adapter, and the `policy` helper in `OpenCode2AdapterV2.test.ts`.
+
 ## Versions
 
 A fork build is named `<upstream version>-mtymek.<N>`, such as `0.1.9-mtymek.1`:
