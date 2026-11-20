@@ -1192,6 +1192,8 @@ export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
   "branchNamePrefix",
   "branchNameInstructions",
   "pullRequestMergeMethod",
+  "jjCommitTrailers",
+  "jjStripTrailersRemotes",
   "sidebarAutoSettleOnMerge",
   "sidebarAutoSettleAfterDays",
   "sidebarAutoSettleKeepPullRequests",
@@ -1230,6 +1232,8 @@ export const ProjectSettingsOverrides = Schema.Struct({
   branchNamePrefix: Schema.optionalKey(TrimmedString),
   branchNameInstructions: Schema.optionalKey(TrimmedString),
   pullRequestMergeMethod: Schema.optionalKey(Schema.NullOr(PullRequestMergeMethod)),
+  jjCommitTrailers: Schema.optionalKey(Schema.Boolean),
+  jjStripTrailersRemotes: Schema.optionalKey(Schema.Array(TrimmedNonEmptyString)),
   sidebarAutoSettleOnMerge: Schema.optionalKey(Schema.Boolean),
   sidebarAutoSettleAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoSettleAfterDays)),
   sidebarAutoSettleKeepPullRequests: Schema.optionalKey(Schema.Boolean),
@@ -1566,6 +1570,12 @@ export const ServerSettings = Schema.Struct({
 
   pullRequestMergeMethod: Schema.NullOr(PullRequestMergeMethod).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  /** Whether jj commits T3 makes or its agents make carry T3-Thread and T3-Turn trailers. */
+  jjCommitTrailers: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  /** Remotes whose pushes from T3 drop T3 trailers first; jj's evolog keeps them. */
+  jjStripTrailersRemotes: Schema.Array(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed([])),
   ),
 
   // Schema.Unknown preserves unknown-driver configs across versions; see providerInstance.ts.
@@ -1960,6 +1970,8 @@ export const ServerSettingsPatch = Schema.Struct({
   reviewGuideModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideInstructions: Schema.optionalKey(TrimmedString),
   pullRequestMergeMethod: Schema.optionalKey(Schema.NullOr(PullRequestMergeMethod)),
+  jjCommitTrailers: Schema.optionalKey(Schema.Boolean),
+  jjStripTrailersRemotes: Schema.optionalKey(Schema.Array(TrimmedNonEmptyString)),
   observability: Schema.optionalKey(
     Schema.Struct({
       otlpTracesUrl: Schema.optionalKey(TrimmedString),

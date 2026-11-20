@@ -5,6 +5,7 @@ import type {
   ProjectScript,
   ResolvedKeybindingsConfig,
   ThreadId,
+  VcsDriverKind,
 } from "@t3tools/contracts";
 
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
@@ -15,6 +16,7 @@ import { useT3ProjectFileScripts } from "../../hooks/useT3ProjectFileScripts";
 import { type EnvMode, type EnvironmentOption } from "../BranchToolbar.logic";
 import { BranchToolbar } from "../BranchToolbar";
 import GitActionsControl from "../GitActionsControl";
+import { JjStackControl } from "../JjStackControl";
 import ProjectScriptsControl, {
   type NewProjectScriptInput,
   type ProjectScriptActionResult,
@@ -68,6 +70,7 @@ interface ThreadDetailsPanelProps extends Pick<
   gitCwd: string | null;
   workspaceMutationId: string | null;
   isGitRepo: boolean;
+  vcsKind?: VcsDriverKind | undefined;
   envLocked: boolean;
   availableEnvironments: readonly EnvironmentOption[];
   autoEnvironmentLabel?: string | undefined;
@@ -176,6 +179,10 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
             offersGit &&
             props.activeProjectName !== undefined &&
             (visible.gitActions || (visible.changes && props.isGitRepo)),
+          jj:
+            props.gitCwd !== null &&
+            props.vcsKind === "jj" &&
+            (visible.branch || visible.gitActions || visible.changes),
         };
         return (
           <>
@@ -230,7 +237,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 </ThreadDetailsSection>
               ) : null}
 
-              {show.branch || show.pullRequests || show.git ? (
+              {show.jj || show.branch || show.pullRequests || show.git ? (
                 <ThreadDetailsSection
                   headingId="thread-details-version-control-heading"
                   title={gt("Version Control")}
@@ -238,28 +245,44 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                   separated={density === "full"}
                 >
                   <div className="flex flex-col">
-                    {show.branch ? (
-                      <BranchToolbar layout="panel" panelSection="branch" {...branchToolbarProps} />
-                    ) : null}
-                    {show.pullRequests ? (
-                      <ThreadDetailsThreadPrRows
-                        threadRef={activeThreadRef}
-                        project={project}
-                        composerTarget={props.composerDraftTarget}
-                      />
-                    ) : null}
-                    {show.git && props.gitCwd ? (
-                      <GitActionsControl
-                        compact={density !== "full"}
-                        showActions={visible.gitActions}
-                        showChanges={visible.changes}
-                        gitCwd={props.gitCwd}
-                        workspaceMutationId={props.workspaceMutationId}
-                        activeThreadRef={activeThreadRef}
-                        {...(props.draftId ? { draftId: props.draftId } : {})}
+                    {props.vcsKind === "jj" && props.gitCwd ? (
+                      <JjStackControl
+                        displayMode="panel"
+                        environmentId={props.environmentId}
+                        threadId={props.threadId}
+                        cwd={props.gitCwd}
                         {...(props.onOpenChanges ? { onOpenChanges: props.onOpenChanges } : {})}
                       />
-                    ) : null}
+                    ) : (
+                      <>
+                        {show.branch ? (
+                          <BranchToolbar
+                            layout="panel"
+                            panelSection="branch"
+                            {...branchToolbarProps}
+                          />
+                        ) : null}
+                        {show.pullRequests ? (
+                          <ThreadDetailsThreadPrRows
+                            threadRef={activeThreadRef}
+                            project={project}
+                            composerTarget={props.composerDraftTarget}
+                          />
+                        ) : null}
+                        {show.git && props.gitCwd ? (
+                          <GitActionsControl
+                            compact={density !== "full"}
+                            showActions={visible.gitActions}
+                            showChanges={visible.changes}
+                            gitCwd={props.gitCwd}
+                            workspaceMutationId={props.workspaceMutationId}
+                            activeThreadRef={activeThreadRef}
+                            {...(props.draftId ? { draftId: props.draftId } : {})}
+                            {...(props.onOpenChanges ? { onOpenChanges: props.onOpenChanges } : {})}
+                          />
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 </ThreadDetailsSection>
               ) : null}

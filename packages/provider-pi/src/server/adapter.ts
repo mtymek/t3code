@@ -63,6 +63,7 @@ import {
   makeProviderRetryTurnItem,
 } from "@t3tools/provider-core/server/failure";
 import { turnScopedSelectionTransition } from "@t3tools/provider-core/server/selectionTransition";
+import { ProviderThreadEnvironment } from "@t3tools/provider-core/server/threadEnvironment";
 import {
   findReportedPiModel,
   makePiRpcConnection,
@@ -533,13 +534,14 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         (yield* sessionHeaderNamesCwd(input.initialNativeThreadId))
           ? input.initialNativeThreadId
           : undefined;
+      const threadEnvironment = yield* (yield* ProviderThreadEnvironment).forThread(input.threadId);
       const startConnection = Effect.fnUntraced(function* (sessionPath?: string) {
         const connectionScope = yield* Scope.fork(scope, "sequential");
         return yield* Effect.gen(function* () {
           const launch = buildPiRpcLaunch({
             launchArgs: resolvedLaunchArgs.args,
             // PortScanner.AGENT_THREAD_ENV, as a literal because this package cannot reach apps/server.
-            environment: { ...options.environment, T3CODE_THREAD_ID: input.threadId },
+            environment: { ...options.environment, ...threadEnvironment, T3CODE_THREAD_ID: input.threadId },
             mcpSession,
             extensionPath,
             sessionPath,
@@ -1440,6 +1442,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                 title: toolName,
                 type: "file_change",
                 fileName,
+                changes: [{ operation: "update", path: fileName }],
                 ...(diffStr === undefined ? {} : { diffStr }),
                 ...(newStr === undefined ? {} : { newStr }),
               },

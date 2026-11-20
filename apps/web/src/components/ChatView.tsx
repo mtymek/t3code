@@ -1789,6 +1789,7 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [environmentId, gitStatusCwd, liveIsGitRepo]);
   const isGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd) ?? true;
+  const vcsKind = gitStatusQuery.data?.kind;
   // Provider-native subagents cannot take messages; approvals and questions go to the top-level parent.
   const showProviderSubagentBar = isProviderSubagent;
   const composerMounted = !showProviderSubagentBar;
@@ -2298,14 +2299,16 @@ export default function ChatView(props: ChatViewProps) {
     requestedEnvMode: envMode,
     isGitRepo,
   });
-  const localCheckoutBranchMismatch = isServerThread
-    ? resolveLocalCheckoutBranchMismatch({
-        effectiveEnvMode: envMode,
-        activeWorktreePath,
-        activeThreadBranch,
-        currentGitBranch: gitStatusQuery.data?.refName ?? null,
-      })
-    : null;
+  // jj keeps Git's HEAD detached, so a missing branch there is normal.
+  const localCheckoutBranchMismatch =
+    isServerThread && vcsKind !== "jj"
+      ? resolveLocalCheckoutBranchMismatch({
+          effectiveEnvMode: envMode,
+          activeWorktreePath,
+          activeThreadBranch,
+          currentGitBranch: gitStatusQuery.data?.refName ?? null,
+        })
+      : null;
   const publishComposerOverlayHeight = (height: number) => {
     const nextHeight = Math.ceil(height);
     if (nextHeight <= 0) return;
@@ -3901,6 +3904,7 @@ export default function ChatView(props: ChatViewProps) {
                                       : undefined
                                   }
                                   availableEnvironments={logicalProjectEnvironments}
+                                  jjCwd={vcsKind === "jj" ? gitCwd : null}
                                   {...(isServerThread
                                     ? {}
                                     : {
@@ -3988,6 +3992,7 @@ export default function ChatView(props: ChatViewProps) {
                   gitCwd={gitCwd}
                   workspaceMutationId={workspaceMutationId}
                   isGitRepo={isGitRepo}
+                  vcsKind={vcsKind}
                   envLocked={envLocked}
                   availableEnvironments={logicalProjectEnvironments}
                   autoEnvironmentLabel={autoEnvironmentLabel}
