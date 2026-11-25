@@ -219,6 +219,13 @@ export const make = Effect.gen(function* () {
           }),
       ),
     );
+    if (!handle.gitCompatible) {
+      return yield* new GitManagerError({
+        operation,
+        cwd,
+        detail: `The ${operation} workflow currently supports Git repositories only; detected ${handle.kind}. (${cwd})`,
+      });
+    }
     return handle;
   });
 
@@ -238,6 +245,14 @@ export const make = Effect.gen(function* () {
           }),
       ),
     );
+    if (!handle.gitCompatible) {
+      return yield* new GitCommandError({
+        operation,
+        command: "vcs-route",
+        cwd,
+        detail: `The ${operation} command currently supports Git repositories only; detected ${handle.kind}.`,
+      });
+    }
     return handle;
   });
 
@@ -256,6 +271,13 @@ export const make = Effect.gen(function* () {
       );
       if (!handle) {
         return false;
+      }
+      if (!handle.gitCompatible) {
+        return yield* new GitManagerError({
+          operation,
+          cwd,
+          detail: `The ${operation} workflow currently supports Git repositories only; detected ${handle.kind}. (${cwd})`,
+        });
       }
       return true;
     },
@@ -276,10 +298,8 @@ export const make = Effect.gen(function* () {
           }),
       ),
     );
-    if (!handle) {
-      return false;
-    }
-    return true;
+    // A jj repository without a Git worktree has no Git refs to list.
+    return handle?.gitCompatible === true;
   });
 
   const routeGitManager =
@@ -293,7 +313,9 @@ export const make = Effect.gen(function* () {
   return GitWorkflowService.of({
     repositoryRoot: Effect.fn("GitWorkflowService.repositoryRoot")(function (cwd) {
       return registry.detect({ cwd }).pipe(
-        Effect.map((handle) => (handle?.kind === "git" ? handle.repository.rootPath : null)),
+        Effect.map((handle) =>
+          handle?.gitCompatible === true ? handle.repository.rootPath : null,
+        ),
         Effect.mapError(
           (cause) =>
             new GitManagerError({

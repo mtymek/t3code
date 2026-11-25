@@ -217,6 +217,8 @@ export function RevertConfirmHost(props: {
     "checkpoints" | "checkpointScopes"
   > | null;
   readonly worktreePath: string | null;
+  /** A jj working copy reverts per thread, so it restores files outside a worktree too. */
+  readonly jjWorkingCopy: boolean;
   readonly onConfirm: (turnCount: number, messageId: MessageId, restoreFiles: boolean) => void;
 }) {
   const pending = useThreadOverlay(revertConfirmAtom, props.threadKey);
@@ -232,8 +234,8 @@ export function RevertConfirmHost(props: {
       : null,
   );
   const fileRestore =
-    // The server refuses file restore outside an isolated worktree.
-    props.projection === null || props.worktreePath === null
+    // The server refuses file restore outside an isolated worktree or a jj working copy.
+    props.projection === null || (props.worktreePath === null && !props.jjWorkingCopy)
       ? null
       : rewindFileRestore({
           projection: props.projection,

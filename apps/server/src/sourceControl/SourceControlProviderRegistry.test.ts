@@ -147,6 +147,7 @@ function makeRegistry(input: {
                 },
               },
               driver: driver as unknown as VcsDriver.VcsDriver["Service"],
+              gitCompatible: true,
             }),
         }),
         TestSourceControlHost.layer({

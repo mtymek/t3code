@@ -124,6 +124,14 @@ export const make = Effect.gen(function* () {
       };
     }
 
+    if (!handle.gitCompatible) {
+      return yield* new VcsUnsupportedOperationError({
+        operation: "ReviewService.getDiffPreview",
+        kind: handle.kind,
+        detail: `The ${handle.kind} VCS driver does not support review diff previews.`,
+      });
+    }
+
     return yield* git.getReviewDiffPreview(input);
   });
 
@@ -133,7 +141,7 @@ export const make = Effect.gen(function* () {
     yield* assertWorkspaceBoundCwd("ReviewService.getDiffFileContents", input.cwd);
 
     const handle = yield* vcsRegistry.detect({ cwd: input.cwd, requestedKind: "auto" });
-    if (handle?.kind !== "git") {
+    if (handle?.gitCompatible !== true) {
       return yield* new VcsUnsupportedOperationError({
         operation: "ReviewService.getDiffFileContents",
         kind: handle?.kind ?? "unknown",

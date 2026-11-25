@@ -1207,6 +1207,40 @@ export function summarizeT3ToolCalls(
           );
       break;
     }
+    case "jj-status": {
+      const count = selected.length;
+      label = done
+        ? resolve(
+            msg(
+              "{count, plural, one {Checked the jj stack {count} time} other {Checked the jj stack {count} times}}",
+              { count },
+            ),
+          )
+        : resolve(
+            msg(
+              "{count, plural, one {Tried to check the jj stack {count} time} other {Tried to check the jj stack {count} times}}",
+              { count },
+            ),
+          );
+      break;
+    }
+    case "jj-action": {
+      const count = selected.length;
+      label = done
+        ? resolve(
+            msg(
+              "{count, plural, one {Ran jj actions {count} time} other {Ran jj actions {count} times}}",
+              { count },
+            ),
+          )
+        : resolve(
+            msg(
+              "{count, plural, one {Tried to run jj actions {count} time} other {Tried to run jj actions {count} times}}",
+              { count },
+            ),
+          );
+      break;
+    }
     case "capabilities": {
       const count = selected.length;
       label = done

@@ -595,7 +595,18 @@ function ThreadRouteContent(
       : { environmentId: selectedThread.environmentId, threadId: selectedThread.id };
   const gitActionProgress = useGitActionProgress(gitActionProgressTarget, gitActionThreadRef);
 
+  const opensJjStack = gitStatus.data?.kind === "jj" && gitStatus.data.jj !== undefined;
   const handleOpenGitInspector = () => {
+    if (opensJjStack) {
+      if (selectedThread === null) {
+        return;
+      }
+      navigation.navigate("JjStack", {
+        environmentId: String(selectedThread.environmentId),
+        threadId: String(selectedThread.id),
+      });
+      return;
+    }
     navigation.setParams({ inspector: undefined });
     setChosenInspectorMode("git");
     showInspector();

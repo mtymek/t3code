@@ -176,6 +176,15 @@ import {
   VcsStatusStreamEvent,
 } from "./git.ts";
 import {
+  JjActionError,
+  JjAssignPathsInput,
+  JjAssignPathsResult,
+  JjRunActionInput,
+  JjRunActionResult,
+  JjThreadWorkInput,
+  JjThreadWorkResult,
+} from "./jj.ts";
+import {
   ReviewBranchCommitsInput,
   ReviewBranchCommitsResult,
   ReviewDiffFileContentsInput,
@@ -547,6 +556,9 @@ export const WS_METHODS = {
   vcsCreateRef: "vcs.createRef",
   vcsSwitchRef: "vcs.switchRef",
   vcsInit: "vcs.init",
+  vcsJjRunAction: "vcs.jj.runAction",
+  vcsJjAssignPaths: "vcs.jj.assignPaths",
+  vcsJjThreadWork: "vcs.jj.threadWork",
 
   gitRunStackedAction: "git.runStackedAction",
   gitResolvePullRequest: "git.resolvePullRequest",
@@ -1927,6 +1939,24 @@ const WsVcsInitRpc = Rpc.make(WS_METHODS.vcsInit, {
   error: Schema.Union([VcsError, EnvironmentAuthorizationError]),
 });
 
+const WsVcsJjRunActionRpc = Rpc.make(WS_METHODS.vcsJjRunAction, {
+  payload: JjRunActionInput,
+  success: JjRunActionResult,
+  error: Schema.Union([JjActionError, EnvironmentAuthorizationError]),
+});
+
+const WsVcsJjThreadWorkRpc = Rpc.make(WS_METHODS.vcsJjThreadWork, {
+  payload: JjThreadWorkInput,
+  success: JjThreadWorkResult,
+  error: Schema.Union([JjActionError, EnvironmentAuthorizationError]),
+});
+
+const WsVcsJjAssignPathsRpc = Rpc.make(WS_METHODS.vcsJjAssignPaths, {
+  payload: JjAssignPathsInput,
+  success: JjAssignPathsResult,
+  error: Schema.Union([JjActionError, EnvironmentAuthorizationError]),
+});
+
 const WsReviewGetBranchCommitsRpc = Rpc.make(WS_METHODS.reviewGetBranchCommits, {
   payload: ReviewBranchCommitsInput,
   success: ReviewBranchCommitsResult,
@@ -2475,6 +2505,13 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
+/** The fork's RPCs. The server serves them from a handler layer of their own (apps/server/src/ws.ts). */
+export const ForkWsRpcGroup = RpcGroup.make(
+  WsVcsJjRunActionRpc,
+  WsVcsJjAssignPathsRpc,
+  WsVcsJjThreadWorkRpc,
+).middleware(RpcScopeAuthorization);
+
 export const WsRpcGroup = RpcGroup.make(
   WsIssuesListRpc,
   WsIssuesDetailRpc,
@@ -2735,4 +2772,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SubscribeThreadRpc,
   WsOrchestrationV2SubscribeCommandOutputRpc,
   WsOrchestrationV2SubscribePromptSuggestionRpc,
-).middleware(RpcScopeAuthorization);
+)
+  .middleware(RpcScopeAuthorization)
+  .merge(ForkWsRpcGroup);

@@ -1272,6 +1272,20 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: [msg("linear jira issues tracker team api key connect bind project")],
   },
   {
+    id: "jj-commit-trailers",
+    title: msg("Add T3 trailers to jj commits"),
+    to: "/settings/source-control",
+    scope: "project-defaults",
+    searchTerms: [msg("jujutsu jj commit trailers T3-Thread T3-Turn thread turn link description")],
+  },
+  {
+    id: "jj-strip-trailers-remotes",
+    title: msg("Strip T3 trailers when pushing to"),
+    to: "/settings/source-control",
+    scope: "project-defaults",
+    searchTerms: [msg("jujutsu jj push remotes remove trailers T3-Thread T3-Turn origin upstream")],
+  },
+  {
     id: "source-control",
     title: msg("Source control"),
     to: "/settings/source-control",

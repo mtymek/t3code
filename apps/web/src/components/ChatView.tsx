@@ -1882,6 +1882,7 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [environmentId, gitStatusCwd, liveIsGitRepo]);
   const isGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd) ?? true;
+  const vcsKind = gitStatusQuery.data?.kind;
   // A plain folder holding tracked repositories has turn diffs without being a Git repository.
   const diffAvailable =
     isGitRepo ||
@@ -2411,14 +2412,16 @@ export default function ChatView(props: ChatViewProps) {
       ? (draftThread?.worktreeRepositories ?? rememberedWorktreeRepositories)
       : undefined,
   }).strategyRepositories;
-  const localCheckoutBranchMismatch = isServerThread
-    ? resolveLocalCheckoutBranchMismatch({
-        effectiveEnvMode: envMode,
-        activeWorktreePath,
-        activeThreadBranch,
-        currentGitBranch: gitStatusQuery.data?.refName ?? null,
-      })
-    : null;
+  // jj keeps Git's HEAD detached, so a missing branch there is normal.
+  const localCheckoutBranchMismatch =
+    isServerThread && vcsKind !== "jj"
+      ? resolveLocalCheckoutBranchMismatch({
+          effectiveEnvMode: envMode,
+          activeWorktreePath,
+          activeThreadBranch,
+          currentGitBranch: gitStatusQuery.data?.refName ?? null,
+        })
+      : null;
   const publishComposerOverlayHeight = (height: number) => {
     const nextHeight = Math.ceil(height);
     if (nextHeight <= 0) return;
@@ -4062,6 +4065,7 @@ export default function ChatView(props: ChatViewProps) {
                                       : undefined
                                   }
                                   availableEnvironments={logicalProjectEnvironments}
+                                  jjCwd={vcsKind === "jj" ? gitCwd : null}
                                   {...(isServerThread
                                     ? {}
                                     : {
@@ -4151,6 +4155,7 @@ export default function ChatView(props: ChatViewProps) {
                   gitCwd={gitCwd}
                   workspaceMutationId={workspaceRevision.revision}
                   isGitRepo={isGitRepo}
+                  vcsKind={vcsKind}
                   offersWorkspaceModes={workspaceModesOffered}
                   envLocked={envLocked}
                   availableEnvironments={logicalProjectEnvironments}
@@ -4296,6 +4301,7 @@ export default function ChatView(props: ChatViewProps) {
         taskFolderPath={activeThreadWorktreePath}
         projection={serverProjection}
         worktreePath={activeThread?.worktreePath ?? null}
+        jjWorkingCopy={vcsKind === "jj"}
         onConfirm={onConfirmRevertStable}
       />
       {embedded ? null : <LinkPullRequestDialogHost />}

@@ -1,6 +1,8 @@
 import { assert, it } from "@effect/vitest";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -14,6 +16,42 @@ import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
 
 it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("GitWorkflowService", (it) => {
+  it.effect("reports a jj repository without Git as not a Git repository", () =>
+    Effect.gen(function* () {
+      const workflow = yield* GitWorkflowService.GitWorkflowService;
+      const root = yield* workflow.repositoryRoot("/jj-repo");
+
+      assert.equal(root, null);
+    }).pipe(
+      Effect.provide(
+        GitWorkflowService.layer.pipe(
+          Layer.provide(
+            Layer.mock(VcsDriverRegistry.VcsDriverRegistry)({
+              detect: () =>
+                Effect.succeed({
+                  kind: "jj",
+                  repository: {
+                    kind: "jj",
+                    rootPath: "/jj-repo",
+                    metadataPath: "/jj-repo/.jj",
+                    freshness: {
+                      source: "live-local",
+                      observedAt: DateTime.makeUnsafe("2026-01-01T00:00:00.000Z"),
+                      expiresAt: Option.none(),
+                    },
+                  },
+                  driver: {} as VcsDriverRegistry.VcsDriverHandle["driver"],
+                  gitCompatible: false,
+                }),
+            }),
+          ),
+          Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
+          Layer.provide(Layer.mock(GitManager.GitManager)({})),
+        ),
+      ),
+    ),
+  );
+
   it.effect("finds a name among the refs of every namespace", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
@@ -40,7 +78,11 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("GitWorkflowServi
         GitWorkflowService.layer.pipe(
           Layer.provide(
             Layer.mock(VcsDriverRegistry.VcsDriverRegistry)({
-              resolve: () => Effect.succeed({ kind: "git" } as VcsDriverRegistry.VcsDriverHandle),
+              resolve: () =>
+                Effect.succeed({
+                  kind: "git",
+                  gitCompatible: true,
+                } as VcsDriverRegistry.VcsDriverHandle),
             }),
           ),
           Layer.provide(Layer.mock(GitManager.GitManager)({})),

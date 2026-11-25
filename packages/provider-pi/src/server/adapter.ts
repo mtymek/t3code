@@ -63,6 +63,7 @@ import {
   makeProviderRetryTurnItem,
 } from "@t3tools/provider-core/server/failure";
 import { turnScopedSelectionTransition } from "@t3tools/provider-core/server/selectionTransition";
+import { ProviderThreadEnvironment } from "@t3tools/provider-core/server/threadEnvironment";
 import {
   findReportedPiModel,
   makePiRpcConnection,
@@ -518,6 +519,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       if (!resolvedLaunchArgs.ok) {
         return yield* protocolError(resolvedLaunchArgs.message);
       }
+      const threadEnvironment = yield* (yield* ProviderThreadEnvironment).forThread(input.threadId);
       // A workspace handoff restarts Pi in a new cwd, but the session header still names the old one.
       const sessionHeaderNamesCwd = Effect.fnUntraced(function* (sessionFile: string) {
         const header = yield* fileSystem.stream(sessionFile).pipe(
@@ -545,7 +547,11 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           const launch = buildPiRpcLaunch({
             launchArgs: resolvedLaunchArgs.args,
             // PortScanner.AGENT_THREAD_ENV, as a literal because this package cannot reach apps/server.
-            environment: { ...options.environment, T3CODE_THREAD_ID: input.threadId },
+            environment: {
+              ...options.environment,
+              ...threadEnvironment,
+              T3CODE_THREAD_ID: input.threadId,
+            },
             mcpSession,
             extensionPath,
             sessionPath,
@@ -1482,6 +1488,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                 title: toolName,
                 type: "file_change",
                 fileName,
+                changes: [{ operation: "update", path: fileName }],
                 ...(diffStr === undefined ? {} : { diffStr }),
                 ...(newStr === undefined ? {} : { newStr }),
               },

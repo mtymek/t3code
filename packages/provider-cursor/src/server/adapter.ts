@@ -1605,6 +1605,9 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                 ...base,
                 type: "command_execution",
                 input: toolCall.args.command,
+                ...(toolCall.args.workingDirectory?.trim()
+                  ? { cwd: toolCall.args.workingDirectory.trim() }
+                  : {}),
                 ...(outputText.length === 0 ? {} : { output: outputText }),
                 ...(toolCall.result?.status === "success"
                   ? { exitCode: toolCall.result.value.exitCode }
@@ -1619,6 +1622,16 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                 ...base,
                 type: "file_change",
                 fileName: cursorToolFileName(toolCall),
+                ...(toolCall.type === "generateImage"
+                  ? {}
+                  : {
+                      changes: [
+                        {
+                          operation: toolCall.type === "delete" ? "delete" : "update",
+                          path: toolCall.args.path,
+                        },
+                      ],
+                    }),
                 ...(toolCall.type === "edit" &&
                 toolCall.result?.status === "success" &&
                 toolCall.result.value.linesAdded !== undefined

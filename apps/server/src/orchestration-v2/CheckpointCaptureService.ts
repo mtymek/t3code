@@ -21,6 +21,7 @@ import * as CheckpointService from "./CheckpointService.ts";
 import * as EventSink from "./EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProjectionStore from "./ProjectionStore.ts";
+import { VcsTurnHooks } from "./VcsTurnHooks.ts";
 import { makeInterruptResultTurnItem } from "./runInterruptResult.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 
@@ -67,6 +68,7 @@ export const layer: Layer.Layer<
     const eventSink = yield* EventSink.EventSinkV2;
     const ids = yield* IdAllocator.IdAllocatorV2;
     const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const vcsTurnHooks = yield* VcsTurnHooks;
     const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
 
     const execute = Effect.fn("orchestrationV2.checkpointCapture.execute")(function* (input: {
@@ -89,6 +91,10 @@ export const layer: Layer.Layer<
       if (run?.status === "rolled_back") {
         return;
       }
+      // A run that failed before its provider thread started has no turn to capture.
+      if (run?.status === "failed" && (rootNode === undefined || providerThread === undefined)) {
+        return;
+      }
 
       if (
         run === undefined ||
@@ -106,6 +112,18 @@ export const layer: Layer.Layer<
         });
       }
 
+      // jj working copies seal the turn's files first; the checkpoint records
+      // `@` after the seal, so reverting to this turn keeps its own change.
+      // A side chat shares its parent's checkout, so it must not seal the parent's edits.
+      if (!sideChat) {
+        yield* vcsTurnHooks.sealTurn({
+          threadId: input.threadId,
+          runId: run.id,
+          ordinal: run.ordinal,
+          cwd: scope.cwd,
+          failed: run.status === "failed",
+        });
+      }
       const capturedAt = yield* DateTime.now;
       const baselineOrdinalWithinScope = Math.max(0, run.ordinal - 1);
       const isPreserved = (ordinalWithinScope: number) =>
